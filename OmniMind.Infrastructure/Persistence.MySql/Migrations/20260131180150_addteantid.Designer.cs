@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OmniMind.Persistence.MySql;
 
@@ -11,9 +12,11 @@ using OmniMind.Persistence.MySql;
 namespace OmniMind.Persistence.MySql.Migrations
 {
     [DbContext(typeof(OmniMindDbContext))]
-    partial class OmniMindDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260131180150_addteantid")]
+    partial class addteantid
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,58 +24,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
-
-            modelBuilder.Entity("OmniMind.Entities.RefreshToken", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("DeviceInfo")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<bool>("IsRevoked")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("IsUsed")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("JwtId")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<long?>("ReplacedByTokenId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime?>("RevokedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime?>("UsedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("RefreshTokens");
-                });
 
             modelBuilder.Entity("OmniMind.Entities.Role", b =>
                 {

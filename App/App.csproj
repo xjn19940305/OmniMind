@@ -40,10 +40,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Folder Include="Controllers\" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<ProjectReference Include="..\OmniMind.Domain\Domain\OmniMind.DomainCore.csproj" />
 		<ProjectReference Include="..\OmniMind.Domain\Entities\OmniMind.Entities.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\OmniMind.Infrastructure\OmniMind.Infrastructure.csproj" />
