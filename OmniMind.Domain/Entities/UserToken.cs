@@ -5,7 +5,8 @@ using System.Text;
 
 namespace OmniMind.Entities
 {
-    public class UserToken : IdentityUserToken<string>
+    public class UserToken : IdentityUserToken<string>, ITenantEntity
     {
+        public long TenantId { get; set; } = default!;
     }
 }

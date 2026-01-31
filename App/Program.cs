@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using OmniMind.Entities;
+using OmniMind.Infrastructure;
 using OmniMind.Persistence.MySql;
 using OmniMind.QuartZ;
 using Quartz;
@@ -35,6 +36,9 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["CONFIG"]))
 
 var mySqlConnectionString = builder.Configuration["DB_CONNECTION"];
 var redisConnectionString = builder.Configuration["StackExchangeRedis:Connection"];
+
+// Tenant Provider (must be registered before DbContext)
+builder.Services.AddScoped<ITenantProvider, JwtTenantProvider>();
 
 // Identity
 builder.Services.AddIdentity<User, Role>(options =>

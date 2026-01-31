@@ -54,5 +54,8 @@
   <SolutionFolder Name="OmniMind.BackgroundJobs">
     <Project Path="OmniMind.QuartZ/OmniMind.QuartZ.csproj" Id="3a188a24-2873-4cd0-97a6-3e7284045b46" />
   </SolutionFolder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
   <Project Path="App/App.csproj" Id="5a4337d5-1dc9-4c03-914f-56f481793455" />
 </Solution>
