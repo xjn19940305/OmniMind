@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using OmniMind.Abstractions.Tenant;
 using OmniMind.Entities;
 using OmniMind.Infrastructure;
 using OmniMind.Persistence.MySql;

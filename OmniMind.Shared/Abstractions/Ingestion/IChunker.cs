@@ -4,9 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OmniMind.Abstractions
+namespace OmniMind.Abstractions.Ingestion
 {
-    internal class Class1
+    /// <summary>
+    /// 切片
+    /// </summary>
+    public interface IChunker
     {
     }
 }

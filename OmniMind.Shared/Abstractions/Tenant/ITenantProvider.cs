@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 
-namespace OmniMind.Entities
+namespace OmniMind.Abstractions.Tenant
 {
     public interface ITenantProvider
     {

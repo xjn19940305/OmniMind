@@ -246,7 +246,7 @@ namespace App.Controllers
             {
                 token = newToken,
                 refreshToken = newRefreshToken.Token,
-                expiresIn = 3 * 24 * 60 * 60 // 3天
+                expiresIn = 7 * 24 * 60 * 60
             });
         }
 
