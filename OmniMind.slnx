@@ -1,5 +1,28 @@
 <Solution>
-  <Project Path="App/App.csproj" Id="5a4337d5-1dc9-4c03-914f-56f481793455" />
+  <Folder Name="/OmniMind.Application/">
+    <Project Path="OmniMind.Application/OmniMind.Abstractions/OmniMind.Application.csproj" />
+    <Project Path="OmniMind.Application/OmniMind.Ingestion/OmniMind.Ingestion.csproj" />
+    <Project Path="OmniMind.Application/Orchestrator/OmniMind.Orchestrator.csproj" />
+  </Folder>
+  <Folder Name="/OmniMind.Domain/">
+    <Project Path="OmniMind.Domain/Domain/OmniMind.DomainCore.csproj" />
+    <Project Path="OmniMind.Domain/Entities/OmniMind.Entities.csproj" />
+  </Folder>
+  <Folder Name="/OmniMind.Infrastructure/">
+    <Project Path="OmniMind.Infrastructure/Messaging.RabbitMQ/OmniMind.Messaging.RabbitMQ.csproj" />
+    <Project Path="OmniMind.Infrastructure/OmniMind.Infrastructure/OmniMind.Infrastructure.csproj" />
+    <Project Path="OmniMind.Infrastructure/OmniMind.QuartZ/OmniMind.QuartZ.csproj" />
+    <Project Path="OmniMind.Infrastructure/Persistence.MySql/OmniMind.Persistence.MySql.csproj" />
+    <Project Path="OmniMind.Infrastructure/Realtime.SignalR/OmniMind.Realtime.SignalR.csproj" />
+    <Project Path="OmniMind.Infrastructure/Storage.Minio/OmniMind.Storage.Minio.csproj" />
+    <Project Path="OmniMind.Infrastructure/Vector.Qdrant/OmniMind.Vector.Qdrant.csproj" />
+  </Folder>
+  <Folder Name="/OmniMind.Shared/">
+    <Project Path="OmniMind.Shared/Abstractions/OmniMind.Abstractions.csproj" />
+    <Project Path="OmniMind.Shared/Contracts/OmniMind.Contracts.csproj" />
+    <Project Path="OmniMind.Shared/Enums/OmniMind.Enums.csproj" />
+    <Project Path="OmniMind.Shared/Kernel/OmniMind.Kernel.csproj" />
+  </Folder>
 
   <SolutionFolder Name="OmniMind.Shared">
     <Project Path="OmniMind.Shared/Enums/OmniMind.Enums.csproj" />
@@ -31,4 +54,5 @@
   <SolutionFolder Name="OmniMind.BackgroundJobs">
     <Project Path="OmniMind.QuartZ/OmniMind.QuartZ.csproj" Id="3a188a24-2873-4cd0-97a6-3e7284045b46" />
   </SolutionFolder>
+  <Project Path="App/App.csproj" Id="5a4337d5-1dc9-4c03-914f-56f481793455" />
 </Solution>

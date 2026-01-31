@@ -160,6 +160,7 @@ builder.Services.AddQuartz(options =>
     options.UsePersistentStore(po =>
     {
         po.UseClustering();
+        po.UseJsonSerializer();
         po.UseMySql(mySqlConnectionString);
     });
 });
