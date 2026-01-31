@@ -47,6 +47,7 @@
 		<ProjectReference Include="..\OmniMind.Domain\Domain\OmniMind.DomainCore.csproj" />
 		<ProjectReference Include="..\OmniMind.Domain\Entities\OmniMind.Entities.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\OmniMind.Infrastructure\OmniMind.Infrastructure.csproj" />
+		<ProjectReference Include="..\OmniMind.Infrastructure\OmniMind.QuartZ\OmniMind.QuartZ.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\Persistence.MySql\OmniMind.Persistence.MySql.csproj" />
 		<ProjectReference Include="..\OmniMind.QuartZ\OmniMind.QuartZ.csproj" />
 		<ProjectReference Include="..\OmniMind.Shared\Contracts\OmniMind.Contracts.csproj" />
