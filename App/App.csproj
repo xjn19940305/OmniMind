@@ -1,16 +1,56 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>c6aba3ec-0927-4e26-bd89-1f6e2f716314</UserSecretsId>
-    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UserSecretsId>c6aba3ec-0927-4e26-bd89-1f6e2f716314</UserSecretsId>
+		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
-    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<!--<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />-->
+		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+		<PackageReference Include="IGeekFan.AspNetCore.Knife4jUI" Version="0.0.16" />
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6" />
+		<PackageReference Include="Microsoft.Extensions.ApiDescription.Server" Version="9.0.2">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.2" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.2" />
+		<PackageReference Include="Duende.IdentityModel" Version="8.0.0" />
+		<PackageReference Include="Minio" Version="7.0.0" />
+		<PackageReference Include="MySql.Data" Version="9.6.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.2">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Quartz" Version="3.15.1" />
+		<PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.15.1" />
+		<PackageReference Include="Quartz.Extensions.Hosting" Version="3.15.1" />
+		<PackageReference Include="Quartz.Serialization.Json" Version="3.15.1" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.2" />
+		<PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="9.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="Controllers\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\OmniMind.Domain\Domain\OmniMind.DomainCore.csproj" />
+		<ProjectReference Include="..\OmniMind.Domain\Entities\OmniMind.Entities.csproj" />
+		<ProjectReference Include="..\OmniMind.Infrastructure\OmniMind.Infrastructure\OmniMind.Infrastructure.csproj" />
+		<ProjectReference Include="..\OmniMind.Infrastructure\Persistence.MySql\OmniMind.Persistence.MySql.csproj" />
+		<ProjectReference Include="..\OmniMind.QuartZ\OmniMind.QuartZ.csproj" />
+		<ProjectReference Include="..\OmniMind.Shared\Contracts\OmniMind.Contracts.csproj" />
+		<ProjectReference Include="..\OmniMind.Shared\Enums\OmniMind.Enums.csproj" />
+	</ItemGroup>
 
 </Project>
