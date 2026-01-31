@@ -1,0 +1,46 @@
+<Solution>
+  <Folder Name="/OmniMind.Application/">
+    <Project Path="OmniMind.Application/OmniMind.Abstractions/OmniMind.Application.csproj" Id="e5f3d076-36c8-45b7-9075-658922ecc4c9" />
+    <Project Path="OmniMind.Application/OmniMind.Ingestion/OmniMind.Ingestion.csproj" Id="fd5de9c7-25cb-49c3-9c82-0d2dce1ca9be" />
+    <Project Path="OmniMind.Application/Orchestrator/OmniMind.Orchestrator.csproj" />
+  </Folder>
+  <Folder Name="/OmniMind.Domain/">
+    <Project Path="OmniMind.Domain/Domain/OmniMind.DomainCore.csproj" />
+    <Project Path="OmniMind.Domain/Entities/OmniMind.Entities.csproj" />
+  </Folder>
+  <Folder Name="/OmniMind.Infrastructure/">
+    <Project Path="OmniMind.Infrastructure/Messaging.RabbitMQ/OmniMind.Messaging.RabbitMQ.csproj" />
+    <Project Path="OmniMind.Infrastructure/Persistence.MySql/OmniMind.Persistence.MySql.csproj" />
+    <Project Path="OmniMind.Infrastructure/Realtime.SignalR/OmniMind.Realtime.SignalR.csproj" />
+    <Project Path="OmniMind.Infrastructure/Storage.Minio/OmniMind.Storage.Minio.csproj" />
+    <Project Path="OmniMind.Infrastructure/Vector.Qdrant/OmniMind.Vector.Qdrant.csproj" />
+  </Folder>
+  <Folder Name="/OmniMind.Shared/">
+    <Project Path="OmniMind.Shared/Abstractions/OmniMind.Abstractions.csproj" />
+    <Project Path="OmniMind.Shared/Contracts/OmniMind.Contracts.csproj" />
+    <Project Path="OmniMind.Shared/Enums/OmniMind.Enums.csproj" />
+    <Project Path="OmniMind.Shared/Kernel/OmniMind.Kernel.csproj" />
+  </Folder>
+  <Project Path="App/App.csproj" Id="5a4337d5-1dc9-4c03-914f-56f481793455" />
+  <SolutionFolder Name="OmniMind.Shared">
+    <Project Path="OmniMind.Shared/Enums/OmniMind.Enums.csproj" />
+    <Project Path="OmniMind.Shared/Contracts/OmniMind.Contracts.csproj" />
+    <Project Path="OmniMind.Shared/Abstractions/OmniMind.Abstractions.csproj" />
+    <Project Path="OmniMind.Shared/Kernel/OmniMind.Kernel.csproj" />
+  </SolutionFolder>
+  <SolutionFolder Name="OmniMind.Domain">
+    <Project Path="OmniMind.Domain/Entities/OmniMind.Entities.csproj" />
+    <Project Path="OmniMind.Domain/Domain/OmniMind.DomainCore.csproj" />
+  </SolutionFolder>
+  <SolutionFolder Name="OmniMind.Infrastructure">
+    <Project Path="OmniMind.Infrastructure/Persistence.MySql/OmniMind.Persistence.MySql.csproj" />
+    <Project Path="OmniMind.Infrastructure/Storage.Minio/OmniMind.Storage.Minio.csproj" />
+    <Project Path="OmniMind.Infrastructure/Vector.Qdrant/OmniMind.Vector.Qdrant.csproj" />
+    <Project Path="OmniMind.Infrastructure/Messaging.RabbitMQ/OmniMind.Messaging.RabbitMQ.csproj" />
+    <Project Path="OmniMind.Infrastructure/Realtime.SignalR/OmniMind.Realtime.SignalR.csproj" />
+  </SolutionFolder>
+  <SolutionFolder Name="OmniMind.Application">
+    <Project Path="OmniMind.Application/Application/OmniMind.Application.csproj" />
+    <Project Path="OmniMind.Application/Orchestrator/OmniMind.Orchestrator.csproj" />
+  </SolutionFolder>
+</Solution>
