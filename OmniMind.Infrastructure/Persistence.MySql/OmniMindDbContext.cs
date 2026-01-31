@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using OmniMind.Abstractions.Tenant;
 using OmniMind.Entities;
 using System;
 using System.Collections.Generic;

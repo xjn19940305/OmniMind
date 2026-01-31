@@ -11,5 +11,6 @@
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\..\OmniMind.Domain\Entities\OmniMind.Entities.csproj" />
+	  <ProjectReference Include="..\..\OmniMind.Shared\Abstractions\OmniMind.Abstractions.csproj" />
 	</ItemGroup>
 </Project>

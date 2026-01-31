@@ -1,3 +1,4 @@
+using OmniMind.Abstractions.Tenant;
 using OmniMind.Entities;
 using System.Security.Claims;
 
