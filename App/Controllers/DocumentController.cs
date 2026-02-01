@@ -6,6 +6,9 @@ using OmniMind.Contracts.Common;
 using OmniMind.Contracts.Document;
 using OmniMind.Entities;
 using OmniMind.Enums;
+using OmniMind.Messaging.Abstractions;
+using OmniMind.Messaging.RabbitMQ;
+using OmniMind.Messages;
 using OmniMind.Persistence.MySql;
 using OmniMind.Storage.Minio;
 
@@ -22,15 +25,18 @@ namespace App.Controllers
         private readonly OmniMindDbContext dbContext;
         private readonly ILogger<DocumentController> logger;
         private readonly IObjectStorage objectStorage;
+        private readonly IMessagePublisher messagePublisher;
 
         public DocumentController(
             OmniMindDbContext dbContext,
             ILogger<DocumentController> logger,
-            IObjectStorage objectStorage)
+            IObjectStorage objectStorage,
+            IMessagePublisher messagePublisher)
         {
             this.dbContext = dbContext;
             this.logger = logger;
             this.objectStorage = objectStorage;
+            this.messagePublisher = messagePublisher;
         }
 
         /// <summary>
@@ -133,6 +139,29 @@ namespace App.Controllers
 
             dbContext.Documents.Add(document);
             await dbContext.SaveChangesAsync();
+
+            // 发布文档上传消息到队列
+            try
+            {
+                var uploadMessage = new DocumentUploadMessage
+                {
+                    DocumentId = document.Id,
+                    TenantId = tenantId,
+                    KnowledgeBaseId = knowledgeBaseId,
+                    ObjectKey = objectKey,
+                    FileName = fileName,
+                    ContentType = (int)contentType
+                };
+
+                await messagePublisher.PublishDocumentUploadAsync(uploadMessage);
+                logger.LogInformation("已发布文档上传消息: DocumentId={DocumentId}, TenantId={TenantId}",
+                    document.Id, tenantId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "发布文档上传消息失败: DocumentId={DocumentId}", document.Id);
+                // 消息发布失败不影响文档创建，可以后续通过补偿机制处理
+            }
 
             var response = await MapToResponse(document);
             return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, response);
