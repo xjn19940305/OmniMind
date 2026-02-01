@@ -6,7 +6,7 @@ using System.Text;
 
 namespace OmniMind.Entities
 {
-    public class User : IdentityUser, ITenantEntity
+    public class User : IdentityUser
     {
         public string? NickName { get; set; }
         /// <summary>
@@ -26,7 +26,6 @@ namespace OmniMind.Entities
         public DateTime? BirthDate { get; set; }
         public DateTime? UpdateAt { get; set; }
         public DateTime DateCreated { get; set; } = DateTime.UtcNow;
-        public long TenantId { get; set; } = default!;
 
         /// <summary>
         /// 备注

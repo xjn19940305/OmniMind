@@ -5,7 +5,7 @@ using System.Text;
 
 namespace OmniMind.Entities
 {
-    public class Role : IdentityRole, ITenantEntity
+    public class Role : IdentityRole
     {
         public int? Sort { get; set; }
         public string? Description { get; set; }
@@ -13,6 +13,5 @@ namespace OmniMind.Entities
         public DateTime DateCreated { get; set; } = DateTime.UtcNow;
 
         public DateTime? DateModify { get; set; }
-        public long TenantId { get; set; } = default!;
     }
 }

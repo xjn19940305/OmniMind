@@ -4,7 +4,10 @@ using System.Security.Claims;
 
 namespace App.AuthenticationPolicy
 {
-    public class JwtTenantProvider : ITenantProvider
+    /// <summary>
+    /// 从 JWT Claims 解析租户信息（tenant_id / tenantId / tid）
+    /// </summary>
+    public sealed class JwtTenantProvider : ITenantProvider
     {
         private readonly IHttpContextAccessor _http;
 
@@ -13,32 +16,55 @@ namespace App.AuthenticationPolicy
             _http = http;
         }
 
-        public bool IsResolved => TryGetTenantId(out _);
+        /// <summary>
+        /// 是否已解析到租户ID
+        /// </summary>
+        public bool IsResolved => TryGetTenantId(out var tid) && !string.IsNullOrWhiteSpace(tid);
 
-        public long TenantId
+        /// <summary>
+        /// 当前租户ID（未解析到则返回空字符串）
+        /// </summary>
+        public string TenantId
         {
             get
             {
-                if (!TryGetTenantId(out var id))
-                    return 0; // 或者抛异常，看你策略
-                return id;
+                return TryGetTenantId(out var tid) ? tid : string.Empty;
             }
         }
 
-        private bool TryGetTenantId(out long tenantId)
+        /// <summary>
+        /// 尝试从 JWT Claims 获取租户ID
+        /// </summary>
+        private bool TryGetTenantId(out string tenantId)
         {
-            tenantId = 0;
+            tenantId = string.Empty;
+            var ctx = _http.HttpContext;
+            if (ctx == null) return false;
 
-            var user = _http.HttpContext?.User;
-            if (user?.Identity?.IsAuthenticated != true) return false;
+            // 1) JWT
+            var user = ctx.User;
+            if (user?.Identity?.IsAuthenticated == true)
+            {
+                var claim = user.FindFirstValue("tenant_id") ?? user.FindFirstValue("tenantId") ?? user.FindFirstValue("tid");
+                if (!string.IsNullOrWhiteSpace(claim))
+                {
+                    tenantId = claim.Trim();
+                    return true;
+                }
+            }
 
-            // 推荐：tenant_id
-            var value = user.FindFirstValue("tenant_id")
-                        ?? user.FindFirstValue("tenantId")
-                        ?? user.FindFirstValue("tid"); // 兼容
+            // 2) Header
+            if (ctx.Request.Headers.TryGetValue("X-Tenant-Id", out var headerVal))
+            {
+                var v = headerVal.ToString();
+                if (!string.IsNullOrWhiteSpace(v))
+                {
+                    tenantId = v.Trim();
+                    return true;
+                }
+            }
 
-            if (string.IsNullOrWhiteSpace(value)) return false;
-            return long.TryParse(value, out tenantId) && tenantId > 0;
+            return false;
         }
     }
 }

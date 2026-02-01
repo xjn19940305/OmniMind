@@ -23,6 +23,7 @@ using Quartz;
 using System.Reflection;
 using System.Text;
 using OmniMind.Storage.Minio;
+using OmniMind.Vector.Qdrant;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
@@ -84,7 +85,11 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 // Authentication - JWT
-builder.Services.AddAuthentication()
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
     .AddJwtBearer(options =>
     {
         options.MapInboundClaims = false;
@@ -102,7 +107,10 @@ builder.Services.AddAuthentication()
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken))
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs"))
                 {
                     context.Token = accessToken;
                 }
@@ -289,6 +297,11 @@ builder.Services.AddDbContext<OmniMindDbContext>(setup =>
 
 // ×¢²áminio·þÎñ
 builder.Services.AddMinioService(builder.Configuration);
+// ×¢²áqdrant
+builder.Services.AddQdrantService(builder.Configuration);
+
+
+
 
 // HttpClient & HealthChecks
 builder.Services.AddHttpClient();

@@ -17,9 +17,11 @@ namespace OmniMind.Abstractions.Storage
         /// <param name="key"></param>
         /// <param name="content"></param>
         /// <param name="contentType"></param>
+        /// <param name="metadata">自定义元数据，会以 X-Amz-Meta- 前缀存储</param>
         /// <param name="ct"></param>
         /// <returns></returns>
-        Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default);
+        Task PutAsync(string key, Stream content, string contentType, Dictionary<string, string>? metadata = null, CancellationToken ct = default);
+
         /// <summary>
         /// 获取对象
         /// </summary>

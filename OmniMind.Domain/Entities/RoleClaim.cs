@@ -5,8 +5,8 @@ using System.Text;
 
 namespace OmniMind.Entities
 {
-    public class RoleClaim : IdentityRoleClaim<string>, ITenantEntity
+    public class RoleClaim : IdentityRoleClaim<string>
     {
-        public long TenantId { get; set; } = default!;
+
     }
 }

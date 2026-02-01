@@ -8,6 +8,6 @@ namespace OmniMind.Entities
 {
     public interface ITenantEntity
     {
-        long TenantId { get; set; }
+        string TenantId { get; set; }
     }
 }

@@ -18,5 +18,12 @@ namespace App.Controllers
         {
             this.storage = storage;
         }
+
+        [HttpPost("upload", Name = "上传文件")]
+        public async Task<IActionResult> Upload()
+        {
+            //await storage.PutAsync("11",);
+            return Ok();
+        }
     }
 }

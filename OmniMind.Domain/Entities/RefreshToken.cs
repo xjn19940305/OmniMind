@@ -10,7 +10,7 @@ namespace OmniMind.Entities
         /// <summary>
         /// 主键ID
         /// </summary>
-        public long Id { get; set; }
+        public string Id { get; set; } = Guid.CreateVersion7().ToString();
 
         /// <summary>
         /// 令牌字符串
@@ -55,7 +55,7 @@ namespace OmniMind.Entities
         /// <summary>
         /// 替换的令牌ID（用于令牌轮换）
         /// </summary>
-        public long? ReplacedByTokenId { get; set; }
+        public string? ReplacedByTokenId { get; set; }
 
         /// <summary>
         /// 使用时间
@@ -66,10 +66,9 @@ namespace OmniMind.Entities
         /// 设备信息/客户端IP
         /// </summary>
         public string? DeviceInfo { get; set; }
-
-        /// <summary>
-        /// 租户ID
-        /// </summary>
-        public long TenantId { get; set; }
+        public required string TenantId
+        {
+            get; set;
+        }
     }
 }

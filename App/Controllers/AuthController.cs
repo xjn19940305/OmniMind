@@ -9,9 +9,9 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using OmniMind.Entities;
+using OmniMind.Enums;
 using OmniMind.Persistence.MySql;
 using System.IdentityModel.Tokens.Jwt;
-using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text;
 
@@ -69,7 +69,7 @@ namespace App.Controllers
             {
                 return BadRequest(new { message = "手机号格式不正确" });
             }
-            var user = await _userManager.FindByNameAsync(request.PhoneNumber);
+            var user = await _userManager.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
             if (user == null)
             {
                 user = new User();
@@ -87,92 +87,182 @@ namespace App.Controllers
         }
 
         /// <summary>
-        /// 手机号登录
+        /// 验证验证码并获取可用租户列表
         /// </summary>
-        /// <param name="request">登录请求</param>
-        /// <returns></returns>
-        [HttpPost("phoneSignIn", Name = "手机号登录")]
-        public async Task<IActionResult> PhoneSignIn([FromBody] PhoneSignInRequest request)
+        [HttpPost("verifyCode", Name = "验证验证码")]
+        public async Task<IActionResult> VerifyCode([FromBody] VerifyCodeRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.PhoneNumber) || string.IsNullOrWhiteSpace(request.VerificationCode))
             {
                 return BadRequest(new { message = "手机号和验证码不能为空" });
             }
 
-            var user = await _userManager.FindByNameAsync(request.PhoneNumber);
+            var user = await _userManager.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
             if (user == null)
             {
                 user = new User();
                 user.Id = string.Empty;
-                await _userManager.SetPhoneNumberAsync(user, request.PhoneNumber);
+                user.PhoneNumber = request.PhoneNumber;
+                user.UserName = request.PhoneNumber;
                 user.SecurityStamp = EmptyUserSecurityStamp;
             }
-            if (await _userManager.VerifyUserTokenAsync(user, TokenOptions.DefaultPhoneProvider, $"SignIn_{request.PhoneNumber}", request.VerificationCode) || request.VerificationCode == "666666")
+
+            if (!await _userManager.VerifyUserTokenAsync(user, TokenOptions.DefaultPhoneProvider, $"SignIn_{request.PhoneNumber}", request.VerificationCode)
+                && request.VerificationCode != "666666")
             {
-                //如果数据库里账号不存在创建账号
-                if (string.IsNullOrWhiteSpace(await _userManager.GetUserIdAsync(user)))
+                return BadRequest(new { message = "验证码错误" });
+            }
+
+            // 获取可用的租户列表
+            var tenants = await dbContext.Tenants
+                .Where(t => t.IsEnabled)
+                .OrderBy(t => t.Id)
+                .Select(t => new
                 {
-                    // 确保角色存在
-                    const string roleName = "前端用户";
-                    if (!await _roleManager.RoleExistsAsync(roleName))
-                    {
-                        var role = new Role { Name = roleName, NormalizedName = roleName.ToUpper() };
-                        var roleResult = await _roleManager.CreateAsync(role);
-                        if (!roleResult.Succeeded)
-                        {
-                            return BadRequest(new { message = "创建角色失败", errors = roleResult.Errors.Select(e => e.Description) });
-                        }
-                    }
+                    t.Id,
+                    t.Name,
+                    t.Code,
+                    t.Description
+                })
+                .ToListAsync();
 
-                    user = new User
-                    {
-                        PhoneNumber = request.PhoneNumber,
-                        NickName = request.PhoneNumber,
-                        UserName = request.PhoneNumber,
-                        SecurityStamp = EmptyUserSecurityStamp
-                    };
+            return Ok(new { tenants });
+        }
 
-                    // 先创建用户（必须设置密码）
-                    var createResult = await _userManager.CreateAsync(user, "123456");
-                    if (!createResult.Succeeded)
-                    {
-                        return BadRequest(new { message = "创建用户失败", errors = createResult.Errors.Select(e => e.Description) });
-                    }
+        /// <summary>
+        /// 手机号登录（选择租户后）
+        /// </summary>
+        /// <param name="request">登录请求</param>
+        /// <returns></returns>
+        [HttpPost("phoneSignIn", Name = "手机号登录")]
+        public async Task<IActionResult> PhoneSignIn([FromBody] PhoneSignInRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.PhoneNumber) ||
+                string.IsNullOrWhiteSpace(request.VerificationCode) ||
+              string.IsNullOrEmpty(request.TenantId))
+            {
+                return BadRequest(new { message = "手机号、验证码和租户ID不能为空" });
+            }
 
-                    // 用户创建成功后再添加角色
-                    var addToRoleResult = await _userManager.AddToRoleAsync(user, roleName);
-                    if (!addToRoleResult.Succeeded)
+            // 验证租户是否存在
+            var tenant = await dbContext.Tenants.FindAsync(request.TenantId);
+            if (tenant == null || !tenant.IsEnabled)
+            {
+                return BadRequest(new { message = "租户不存在或已禁用" });
+            }
+
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
+            if (user == null)
+            {
+                user = new User();
+                user.Id = string.Empty;
+                user.PhoneNumber = request.PhoneNumber;
+                user.UserName = request.PhoneNumber;
+                user.SecurityStamp = EmptyUserSecurityStamp;
+            }
+
+            if (!await _userManager.VerifyUserTokenAsync(user, TokenOptions.DefaultPhoneProvider, $"SignIn_{request.PhoneNumber}", request.VerificationCode)
+                && request.VerificationCode != "666666")
+            {
+                return BadRequest(new { message = "验证码错误或已过期" });
+            }
+
+            // 如果用户不存在，创建用户
+            if (string.IsNullOrWhiteSpace(await _userManager.GetUserIdAsync(user)))
+            {
+                // 确保角色存在
+                const string roleName = "前端用户";
+                if (!await _roleManager.RoleExistsAsync(roleName))
+                {
+                    var role = new Role { Name = roleName, NormalizedName = roleName.ToUpper() };
+                    var roleResult = await _roleManager.CreateAsync(role);
+                    if (!roleResult.Succeeded)
                     {
-                        return BadRequest(new { message = "添加角色失败", errors = addToRoleResult.Errors.Select(e => e.Description) });
+                        return BadRequest(new { message = "创建角色失败", errors = roleResult.Errors.Select(e => e.Description) });
                     }
                 }
 
+                user = new User
+                {
+                    PhoneNumber = request.PhoneNumber,
+                    NickName = request.PhoneNumber,
+                    UserName = request.PhoneNumber,
+                    SecurityStamp = EmptyUserSecurityStamp
+                };
+
+                // 先创建用户（必须设置密码）
+                var createResult = await _userManager.CreateAsync(user, "123456");
+                if (!createResult.Succeeded)
+                {
+                    return BadRequest(new { message = "创建用户失败", errors = createResult.Errors.Select(e => e.Description) });
+                }
+
+                // 用户创建成功后再添加角色
+                var addToRoleResult = await _userManager.AddToRoleAsync(user, roleName);
+                if (!addToRoleResult.Succeeded)
+                {
+                    return BadRequest(new { message = "添加角色失败", errors = addToRoleResult.Errors.Select(e => e.Description) });
+                }
+
+                // 为新用户自动创建个人工作空间
+                var workspace = new Workspace
+                {
+                    Name = $"{user.PhoneNumber}的工作空间",
+                    Type = WorkspaceType.Personal,
+                    OwnerUserId = user.Id,
+                    TenantId = request.TenantId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                dbContext.Workspaces.Add(workspace);
+
+                // 添加用户为工作空间所有者
+                var member = new WorkspaceMember
+                {
+                    WorkspaceId = workspace.Id,
+                    UserId = user.Id,
+                    Role = WorkspaceRole.Owner,
+                    TenantId = request.TenantId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                dbContext.WorkspaceMembers.Add(member);
+
+                await dbContext.SaveChangesAsync();
+            }
+            else
+            {
                 user.LastSignDate = DateTime.UtcNow;
                 await _userManager.UpdateAsync(user);
-
-                if (await _signInManager.CanSignInAsync(user))
-                {
-                    var (token, jti) = await GenerateJwtTokenAsync(user);
-                    var refreshToken = await GenerateRefreshTokenAsync(user, jti);
-                    var Roles = await _userManager.GetRolesAsync(user);
-                    return Ok(new
-                    {
-                        token,
-                        refreshToken = refreshToken.Token,
-                        expiresIn = 3 * 24 * 60 * 60, // 3天
-                        user = new
-                        {
-                            user.Id,
-                            user.NickName,
-                            user.TenantId,
-                            user.PhoneNumber,
-                            user.DateCreated,
-                            user.LastSignDate
-                        }
-                    });
-                }
             }
-            return BadRequest("登陆失败!");
+
+            if (await _signInManager.CanSignInAsync(user))
+            {
+                var (token, jti) = await GenerateJwtTokenAsync(user, tenant.Id);
+                var refreshToken = await GenerateRefreshTokenAsync(user, jti, tenant.Id);
+                var Roles = await _userManager.GetRolesAsync(user);
+                return Ok(new
+                {
+                    token,
+                    refreshToken = refreshToken.Token,
+                    expiresIn = 7 * 24 * 60 * 60,
+                    user = new
+                    {
+                        user.Id,
+                        user.NickName,
+                        TenantId = tenant.Id,
+                        user.PhoneNumber,
+                        user.DateCreated,
+                        user.LastSignDate
+                    },
+                    tenant = new
+                    {
+                        tenant.Id,
+                        tenant.Name,
+                        tenant.Code
+                    }
+                });
+            }
+
+            return BadRequest(new { message = "登录失败" });
         }
 
         /// <summary>
@@ -212,7 +302,6 @@ namespace App.Controllers
                 return BadRequest(new { message = "用户不存在" });
             }
 
-            // 验证JWT Token
             var jwtTokenHandler = new JwtSecurityTokenHandler();
             if (!jwtTokenHandler.CanReadToken(request.Token))
             {
@@ -222,21 +311,17 @@ namespace App.Controllers
             var jwtToken = jwtTokenHandler.ReadJwtToken(request.Token);
             var jti = jwtToken.Id;
 
-            // 验证JTI是否匹配
             if (storedRefreshToken.JwtId != jti)
             {
                 return BadRequest(new { message = "Token与RefreshToken不匹配" });
             }
-
-            // 标记旧的RefreshToken为已使用
             storedRefreshToken.IsUsed = true;
-            await dbContext.SaveChangesAsync();
 
             // 生成新的Token和RefreshToken
-            var (newToken, newJti) = await GenerateJwtTokenAsync(user);
-            var newRefreshToken = await GenerateRefreshTokenAsync(user, newJti);
+            var (newToken, newJti) = await GenerateJwtTokenAsync(user, storedRefreshToken.TenantId);
+            var newRefreshToken = await GenerateRefreshTokenAsync(user, newJti, storedRefreshToken.TenantId);
 
-            // 将旧的RefreshToken指向新的
+
             storedRefreshToken.ReplacedByTokenId = newRefreshToken.Id;
             await dbContext.SaveChangesAsync();
 
@@ -274,16 +359,38 @@ namespace App.Controllers
         }
 
         /// <summary>
+        /// 获取租户列表
+        /// </summary>
+        [HttpGet("tenants", Name = "获取租户列表")]
+        public async Task<IActionResult> GetTenants()
+        {
+            var tenants = await dbContext.Tenants
+                .Where(t => t.IsEnabled)
+                .OrderBy(t => t.Id)
+                .Select(t => new
+                {
+                    t.Id,
+                    t.Name,
+                    t.Code,
+                    t.Description,
+                    t.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(tenants);
+        }
+
+        /// <summary>
         /// 生成 RefreshToken
         /// </summary>
-        private async Task<RefreshToken> GenerateRefreshTokenAsync(User user, string jwtId)
+        private async Task<RefreshToken> GenerateRefreshTokenAsync(User user, string jwtId, string tenantId)
         {
             var refreshToken = new RefreshToken
             {
                 Token = Guid.NewGuid().ToString("N"),
                 JwtId = jwtId,
                 UserId = user.Id,
-                TenantId = user.TenantId,
+                TenantId = tenantId,
                 CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(30),
                 DeviceInfo = Request.Headers["User-Agent"].ToString()
@@ -304,9 +411,9 @@ namespace App.Controllers
             refreshToken.RevokedAt = DateTime.UtcNow;
 
             // 查找被替换的Token
-            if (refreshToken.ReplacedByTokenId.HasValue)
+            if (!string.IsNullOrEmpty(refreshToken.ReplacedByTokenId))
             {
-                var nextToken = await dbContext.RefreshTokens.FindAsync(refreshToken.ReplacedByTokenId.Value);
+                var nextToken = await dbContext.RefreshTokens.FindAsync(refreshToken.ReplacedByTokenId);
                 if (nextToken != null)
                 {
                     await RevokeRefreshTokenChain(nextToken);
@@ -319,38 +426,38 @@ namespace App.Controllers
         /// <summary>
         /// 生成 JWT Token
         /// </summary>
-        private async Task<(string token, string jti)> GenerateJwtTokenAsync(User user)
+        private async Task<(string token, string jti)> GenerateJwtTokenAsync(User user, string tenantId)
         {
 
             // 创建 Claims
             var jti = Guid.NewGuid().ToString();
             var claims = new List<Claim>
             {
-                new Claim("tenant_id", user.TenantId.ToString()),
-                new Claim(ClaimTypes.MobilePhone, user.PhoneNumber ?? ""),
-                new Claim(ClaimTypes.Name, user.UserName ?? ""),
+                new Claim("tenant_id",tenantId),
+                new Claim(JwtClaimTypes.PhoneNumber, user.PhoneNumber ?? ""),
+                new Claim(JwtClaimTypes.Name, user.UserName ?? ""),
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id),
                 new Claim(JwtRegisteredClaimNames.Jti, jti),
                 new Claim("nickname", user.NickName ?? "")
             };
 
-
-
             // 从配置获取 JWT 参数
             var secretKey = _configuration["JwtBearerOptions:SecretKey"];
-            var issuer = _configuration["JwtBearerOptions:ValidIssuer"];
-            var audience = _configuration["JwtBearerOptions:ValidAudience"];
+            var issuer = _configuration["JwtBearerOptions:TokenValidationParameters:ValidIssuer"]
+                        ?? _configuration["JwtBearerOptions:ValidIssuer"];
+            var audience = _configuration["JwtBearerOptions:TokenValidationParameters:ValidAudience"]
+                          ?? _configuration["JwtBearerOptions:ValidAudience"]
+                          ?? "OMNIMIND";
 
-            // 获取密钥
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey ?? "OMNIMIND_2026_01_31_milo_RAG_OCR_OMNIMIND"));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             // 创建 Token
             var token = new JwtSecurityToken(
-                issuer: issuer,
+                issuer: issuer ?? "OMNIMIND",
                 audience: audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddDays(3),
+                expires: DateTime.UtcNow.AddDays(7),
                 signingCredentials: creds
             );
 
@@ -384,6 +491,22 @@ namespace App.Controllers
     }
 
     /// <summary>
+    /// 验证验证码请求
+    /// </summary>
+    public record VerifyCodeRequest
+    {
+        /// <summary>
+        /// 手机号
+        /// </summary>
+        public string PhoneNumber { get; init; } = string.Empty;
+
+        /// <summary>
+        /// 验证码
+        /// </summary>
+        public string VerificationCode { get; init; } = string.Empty;
+    }
+
+    /// <summary>
     /// 手机号登录请求
     /// </summary>
     public record PhoneSignInRequest
@@ -397,6 +520,11 @@ namespace App.Controllers
         /// 验证码
         /// </summary>
         public string VerificationCode { get; init; } = string.Empty;
+
+        /// <summary>
+        /// 租户ID
+        /// </summary>
+        public required string TenantId { get; init; }
 
         /// <summary>
         /// 记住我

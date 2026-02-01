@@ -7,6 +7,6 @@ namespace OmniMind.Entities
 {
     public class UserToken : IdentityUserToken<string>, ITenantEntity
     {
-        public long TenantId { get; set; } = default!;
+        public string TenantId { get; set; } = default!;
     }
 }
