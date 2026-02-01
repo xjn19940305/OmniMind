@@ -24,6 +24,8 @@ using System.Reflection;
 using System.Text;
 using OmniMind.Storage.Minio;
 using OmniMind.Vector.Qdrant;
+using OmniMind.Messaging.RabbitMQ;
+using RabbitMQ.Client;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
@@ -158,6 +160,7 @@ builder.Services.AddQuartz(options =>
         c.MaxConcurrency = Environment.ProcessorCount * 2;
     });
 
+    // TestJob - 示例任务
     options.AddJob<TestJob>(config =>
     {
         config.WithIdentity(nameof(TestJob))
@@ -170,6 +173,48 @@ builder.Services.AddQuartz(options =>
         .WithSimpleSchedule(x => x.WithIntervalInMinutes(5).RepeatForever())
         .StartNow();
     });
+
+    // DocumentProcessingJob - 文档处理任务
+    // 模式1: 定时批量处理模式（推荐用于生产环境）
+    // 每1分钟执行一次，每次处理10个待上传的文档
+    options.AddJob<DocumentProcessingJob>(config =>
+    {
+        config.WithIdentity("DocumentProcessingJob")
+        .StoreDurably()
+        .UsingJobData("mode", "continuous")           // batch=批量模式, continuous=持续模式
+        .UsingJobData("batchSize", 50)           // 每批处理文档数量
+        .UsingJobData("timeoutSeconds", 60);     // 超时时间（秒）
+    })
+    .AddTrigger(opt =>
+    {
+        opt.WithIdentity("DocumentProcessingJobTrigger")
+        .ForJob("DocumentProcessingJob")
+        // 使用Cron表达式：每分钟执行一次
+        .WithCronSchedule("0 * * * * ?")
+        // 或者使用简单调度：每1分钟执行一次
+        // .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
+        .StartNow();
+    });
+
+    // 模式2: 持续监听模式（可选）
+    // 启动后持续监听RabbitMQ队列，适合高吞吐场景
+    // 注意：由于Quartz集群机制，只有一个节点会运行此Job
+    /*
+    options.AddJob<DocumentProcessingJob>(config =>
+    {
+        config.WithIdentity("DocumentProcessingJobContinuous")
+        .StoreDurably()
+        .UsingJobData("mode", "continuous");  // 持续模式
+    })
+    .AddTrigger(opt =>
+    {
+        opt.WithIdentity("DocumentProcessingJobContinuousTrigger")
+        .ForJob("DocumentProcessingJobContinuous")
+        // 每小时检查一次，如果Job未运行则启动（容错机制）
+        .WithCronSchedule("0 0 * * * ?")
+        .StartNow();
+    });
+    */
 
     options.UsePersistentStore(po =>
     {
@@ -295,11 +340,12 @@ builder.Services.AddDbContext<OmniMindDbContext>(setup =>
     });
 });
 
-// ע��minio����
+// 注册minio对象存储服务
 builder.Services.AddMinioService(builder.Configuration);
-// ע��qdrant
+// 注册qdrant向量数据库服务
 builder.Services.AddQdrantService(builder.Configuration);
-
+// 注册RabbitMQ消息服务
+builder.Services.AddRabbitMQ(builder.Configuration);
 
 
 
