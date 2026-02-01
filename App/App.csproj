@@ -42,10 +42,15 @@
 	<ItemGroup>
 		<ProjectReference Include="..\OmniMind.Domain\Domain\OmniMind.DomainCore.csproj" />
 		<ProjectReference Include="..\OmniMind.Domain\Entities\OmniMind.Entities.csproj" />
+		<ProjectReference Include="..\OmniMind.Infrastructure\Messaging.RabbitMQ\OmniMind.Messaging.RabbitMQ.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\OmniMind.Infrastructure\OmniMind.Infrastructure.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\OmniMind.QuartZ\OmniMind.QuartZ.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\Persistence.MySql\OmniMind.Persistence.MySql.csproj" />
+		<ProjectReference Include="..\OmniMind.Infrastructure\Realtime.SignalR\OmniMind.Realtime.SignalR.csproj" />
+		<ProjectReference Include="..\OmniMind.Infrastructure\Storage.Minio\OmniMind.Storage.Minio.csproj" />
+		<ProjectReference Include="..\OmniMind.Infrastructure\Vector.Qdrant\OmniMind.Vector.Qdrant.csproj" />
 		<ProjectReference Include="..\OmniMind.QuartZ\OmniMind.QuartZ.csproj" />
+		<ProjectReference Include="..\OmniMind.Shared\Abstractions\OmniMind.Abstractions.csproj" />
 		<ProjectReference Include="..\OmniMind.Shared\Contracts\OmniMind.Contracts.csproj" />
 		<ProjectReference Include="..\OmniMind.Shared\Enums\OmniMind.Enums.csproj" />
 	</ItemGroup>

@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Minio;
 using OmniMind.Abstractions.Tenant;
 using OmniMind.Entities;
 using OmniMind.Infrastructure;
@@ -21,7 +22,7 @@ using OmniMind.QuartZ;
 using Quartz;
 using System.Reflection;
 using System.Text;
-
+using OmniMind.Storage.Minio;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
@@ -285,6 +286,9 @@ builder.Services.AddDbContext<OmniMindDbContext>(setup =>
         options.MigrationsAssembly(Assembly.Load("OmniMind.Persistence.MySql").FullName);
     });
 });
+
+// ×¢²áminio·þÎñ
+builder.Services.AddMinioService(builder.Configuration);
 
 // HttpClient & HealthChecks
 builder.Services.AddHttpClient();

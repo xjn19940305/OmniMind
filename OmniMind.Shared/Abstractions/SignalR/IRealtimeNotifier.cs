@@ -11,5 +11,6 @@ namespace OmniMind.Abstractions.SignalR
     /// </summary>
     public interface IRealtimeNotifier
     {
+        //Task NotifyIngestionProgressAsync(long tenantId, string taskId, IngestionProgress progress, CancellationToken ct = default);
     }
 }
