@@ -23,21 +23,21 @@ namespace App.Controllers
     [ApiGroup(ApiGroupNames.USER)]
     [ApiController]
     [Route("api/[controller]")]
-    public class AccountController : ControllerBase
+    public class AuthController : ControllerBase
     {
         private readonly UserManager<User> _userManager;
         private readonly SignInManager<User> _signInManager;
         private readonly RoleManager<Role> _roleManager;
-        private readonly ILogger<AccountController> _logger;
+        private readonly ILogger<AuthController> _logger;
         private readonly IDistributedCache _cache;
         private readonly IConfiguration _configuration;
         private readonly OmniMindDbContext dbContext;
         private const string EmptyUserSecurityStamp = "e7b51244f3ad4511b9739dfc29b261d5";
-        public AccountController(
+        public AuthController(
             UserManager<User> userManager,
             SignInManager<User> signInManager,
             RoleManager<Role> roleManager,
-            ILogger<AccountController> logger,
+            ILogger<AuthController> logger,
             IDistributedCache cache,
             IConfiguration configuration,
             OmniMindDbContext dbContext)
@@ -107,8 +107,6 @@ namespace App.Controllers
                 await _userManager.SetPhoneNumberAsync(user, request.PhoneNumber);
                 user.SecurityStamp = EmptyUserSecurityStamp;
             }
-            //var authenticateResult = await HttpContext.AuthenticateAsync();
-            //var externalLoginInfo = await signInManager.GetExternalLoginInfoAsync();
             if (await _userManager.VerifyUserTokenAsync(user, TokenOptions.DefaultPhoneProvider, $"SignIn_{request.PhoneNumber}", request.VerificationCode) || request.VerificationCode == "666666")
             {
                 //如果数据库里账号不存在创建账号
