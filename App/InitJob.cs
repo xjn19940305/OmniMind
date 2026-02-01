@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using OmniMind.Entities;
@@ -21,8 +22,10 @@ namespace App
             if (!await dbContext.Database.CanConnectAsync())
             {
                 await dbContext.Database.MigrateAsync();
+                await CreateTenant();
                 await CreateRole(roleManager);
-                await CreateUser();
+                //await CreateUser();
+
                 await ImportMasterData();
 
 
@@ -38,7 +41,17 @@ namespace App
         }
 
 
-
+        async Task CreateTenant()
+        {
+            dbContext.Add(new Tenant
+            {
+                Name = "默认租户",
+                Code = "default",
+                Description = "系统默认租户",
+                IsEnabled = true,
+            });
+            await dbContext.SaveChangesAsync();
+        }
 
         async Task ImportMasterData()
         {

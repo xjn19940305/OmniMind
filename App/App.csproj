@@ -49,7 +49,6 @@
 		<ProjectReference Include="..\OmniMind.Infrastructure\Realtime.SignalR\OmniMind.Realtime.SignalR.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\Storage.Minio\OmniMind.Storage.Minio.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\Vector.Qdrant\OmniMind.Vector.Qdrant.csproj" />
-		<ProjectReference Include="..\OmniMind.QuartZ\OmniMind.QuartZ.csproj" />
 		<ProjectReference Include="..\OmniMind.Shared\Abstractions\OmniMind.Abstractions.csproj" />
 		<ProjectReference Include="..\OmniMind.Shared\Contracts\OmniMind.Contracts.csproj" />
 		<ProjectReference Include="..\OmniMind.Shared\Enums\OmniMind.Enums.csproj" />

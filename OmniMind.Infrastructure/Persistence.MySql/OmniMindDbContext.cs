@@ -15,6 +15,16 @@ namespace OmniMind.Persistence.MySql
         private readonly ITenantProvider _tenant;
 
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<Tenant> Tenants { get; set; }
+        public DbSet<KnowledgeBase> KnowledgeBases { get; set; }
+        public DbSet<Workspace> Workspaces { get; set; }
+        public DbSet<KnowledgeBaseWorkspace> KnowledgeBaseWorkspaces { get; set; }
+        public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
+        public DbSet<Folder> Folders { get; set; }
+        public DbSet<Document> Documents { get; set; }
+        public DbSet<DocumentVersion> DocumentVersions { get; set; }
+        public DbSet<Chunk> Chunks { get; set; }
+        public DbSet<IngestionTask> IngestionTasks { get; set; }
 
 
         public OmniMindDbContext(DbContextOptions options, ITenantProvider tenant) : base(options)
@@ -24,7 +34,7 @@ namespace OmniMind.Persistence.MySql
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             base.OnConfiguring(optionsBuilder);
-            optionsBuilder.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+            optionsBuilder.UseQueryTrackingBehavior(QueryTrackingBehavior.TrackAll);
         }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -43,9 +53,34 @@ namespace OmniMind.Persistence.MySql
             }
             modelBuilder.Entity<User>(build =>
             {
-                build.HasIndex(u => new { u.TenantId, u.PhoneNumber });
+                build.HasIndex(u => new { u.PhoneNumber });
 
             });
+            //// KnowledgeBaseWorkspace：级联删除（删除 KB 或 Workspace 时清理关联）
+            //modelBuilder.Entity<KnowledgeBaseWorkspace>()
+            //    .HasOne(x => x.KnowledgeBase)
+            //    .WithMany(x => x.WorkspaceLinks)
+            //    .HasForeignKey(x => x.KnowledgeBaseId)
+            //    .OnDelete(DeleteBehavior.Cascade);
+
+            //modelBuilder.Entity<KnowledgeBaseWorkspace>()
+            //    .HasOne(x => x.Workspace)
+            //    .WithMany(x => x.KnowledgeBaseLinks)
+            //    .HasForeignKey(x => x.WorkspaceId)
+            //    .OnDelete(DeleteBehavior.Cascade);
+
+            //// Document：建议 Restrict，避免误删 KB/Workspace 导致文档全灭（看你业务）
+            //modelBuilder.Entity<Document>()
+            //    .HasOne(x => x.KnowledgeBase)
+            //    .WithMany(x => x.Documents)
+            //    .HasForeignKey(x => x.KnowledgeBaseId)
+            //    .OnDelete(DeleteBehavior.Restrict);
+
+            //modelBuilder.Entity<Document>()
+            //    .HasOne(x => x.Workspace)
+            //    .WithMany(x => x.Documents)
+            //    .HasForeignKey(x => x.WorkspaceId)
+            //    .OnDelete(DeleteBehavior.Restrict);
 
         }
         private static void SetTenantFilter<TEntity>(ModelBuilder builder, OmniMindDbContext db)
@@ -71,17 +106,24 @@ namespace OmniMind.Persistence.MySql
         }
         private void ApplyTenantRules()
         {
-            // 获取当前租户ID，如果未解析则使用默认租户（0）
-            var currentTenantId = _tenant.TenantId;
-            var isResolved = _tenant.IsResolved;
+
+            // 允许 Tenant 表直接写入：Tenant 不要求租户解析
+            var isResolved = _tenant?.IsResolved == true;
+            var currentTenantId = isResolved ? _tenant!.TenantId : string.Empty;
 
             foreach (var entry in ChangeTracker.Entries<ITenantEntity>())
             {
+                // ✅ 只跳过 Tenant 自己，不影响其他表
+                if (entry.Entity is Tenant) continue;
+
+                // 对业务表：必须解析租户
+                if (!isResolved)
+                    throw new InvalidOperationException("Tenant is not resolved.");
                 if (entry.State == EntityState.Added)
                 {
                     // 新增实体：自动设置租户ID
                     // 如果租户未解析（未登录用户），使用默认租户0
-                    if (entry.Entity.TenantId == 0)
+                    if (string.IsNullOrWhiteSpace(entry.Entity.TenantId))
                     {
                         entry.Entity.TenantId = currentTenantId;
                     }
@@ -95,7 +137,7 @@ namespace OmniMind.Persistence.MySql
                         entry.Property(x => x.TenantId).IsModified = false;
 
                         // 从数据库原值校验（避免实体被提前改掉）
-                        var originalTenantId = (long)entry.Property(x => x.TenantId).OriginalValue!;
+                        var originalTenantId = entry.Property(x => x.TenantId).OriginalValue!;
                         if (originalTenantId != currentTenantId)
                             throw new InvalidOperationException("Cross-tenant update is not allowed.");
                     }
