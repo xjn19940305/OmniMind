@@ -1,4 +1,5 @@
 # OmniMind
+企业级多模态AI知识引擎
 ## Enterprise Multimodal AI Knowledge Engine
 
 > OmniMind 是一套面向企业级场景打造的 **多模态 AI 知识引擎**，致力于让任何数据都能被 AI 理解、检索与推理，从而构建真正可落地的企业认知基础设施（Enterprise Cognitive Infrastructure）。
