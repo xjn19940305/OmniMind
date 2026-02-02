@@ -7,6 +7,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="DocumentFormat.OpenXml" Version="3.4.1" />
+		<PackageReference Include="PdfPig" Version="0.1.13" />
 		<PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
 		<PackageReference Include="Microsoft.Extensions.Options" Version="9.0.4" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
@@ -15,6 +17,7 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\Persistence.MySql\OmniMind.Persistence.MySql.csproj" />
+	  <ProjectReference Include="..\..\OmniMind.Application\OmniMind.Ingestion\OmniMind.Ingestion.csproj" />
 	</ItemGroup>
 
 </Project>
