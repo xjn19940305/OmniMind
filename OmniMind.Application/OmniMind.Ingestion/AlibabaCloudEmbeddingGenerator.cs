@@ -29,7 +29,7 @@ namespace OmniMind.Ingestion
             this.httpClient.BaseAddress = new Uri(this.options.Endpoint ?? "https://dashscope.aliyuncs.com");
 
             // 使用配置的模型
-            var modelId = this.options.Model ?? "text-embedding-v3";
+            var modelId = this.options.Model ?? "text-embedding-v4";
 
             // 创建元数据属性
             Metadata = new EmbeddingGeneratorMetadata(
@@ -37,8 +37,10 @@ namespace OmniMind.Ingestion
                 dimensions: VectorSize);
 
             // 设置默认请求头
-            this.httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {this.options.ApiKey}");
-            this.httpClient.DefaultRequestHeaders.Add("Content-Type", "application/json");
+            // 移除已存在的 Authorization 头（避免重复添加）
+            this.httpClient.DefaultRequestHeaders.Remove("Authorization");
+            this.httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {this.options.ApiKey}");
+            // 注意：Content-Type 应该在发送请求时通过 HttpContent 设置，而不是在 DefaultRequestHeaders 中
         }
 
         /// <summary>
@@ -94,22 +96,14 @@ namespace OmniMind.Ingestion
                 var requestBody = new
                 {
                     model = Metadata.ModelId,
-                    input = new
-                    {
-                        texts = texts
-                    },
-                    parameters = new
-                    {
-                        text_type = "document" // document 或 query
-                    }
+                    input = texts
                 };
 
                 var jsonContent = JsonSerializer.Serialize(requestBody);
                 var content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
 
                 // 发送请求
-                var response = await httpClient.PostAsync(
-                    "/api/v1/services/embeddings/text-embedding/text-embedding",
+                var response = await httpClient.PostAsync("/compatible-mode/v1/embeddings",
                     content,
                     cancellationToken);
 
@@ -126,15 +120,14 @@ namespace OmniMind.Ingestion
                 using var jsonDoc = JsonDocument.Parse(responseBody);
                 var root = jsonDoc.RootElement;
 
-                // DashScope 响应格式: { "output": { "embeddings": [...] } }
-                if (root.TryGetProperty("output", out var output) &&
-                    output.TryGetProperty("embeddings", out var embeddings))
+                // DashScope OpenAI 兼容格式响应: { "data": [{ "embedding": [...], "index": 0, "object": "embedding" }] }
+                if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
                 {
                     var result = new List<Embedding<float>>();
 
-                    foreach (var embedding in embeddings.EnumerateArray())
+                    foreach (var item in data.EnumerateArray())
                     {
-                        if (embedding.TryGetProperty("embedding", out var vector))
+                        if (item.TryGetProperty("embedding", out var vector))
                         {
                             var floatArray = new float[vector.GetArrayLength()];
                             int index = 0;

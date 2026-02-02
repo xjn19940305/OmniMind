@@ -100,13 +100,9 @@ namespace OmniMind.Vector.Qdrant
             );
         }
 
-        private string GetQualifiedCollectionName(string collection)
+        private string GetQualifiedCollectionName(string collection, string? tenantId = "0")
         {
-            if (!string.IsNullOrEmpty(options.TenantId))
-            {
-                return $"tenant-{options.TenantId}_{collection}";
-            }
-            return collection;
+            return $"tenant-{tenantId}_{collection}";
         }
 
         public static string GenerateTenantCollectionName(string tenantId, string collectionName)

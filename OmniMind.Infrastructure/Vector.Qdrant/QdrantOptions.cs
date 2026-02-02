@@ -7,7 +7,5 @@ namespace OmniMind.Vector.Qdrant
         public int Port { get; set; } = 6334;
 
         public bool Https { get; set; }
-
-        public string? TenantId { get; set; }
     }
 }

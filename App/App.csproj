@@ -42,6 +42,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\OmniMind.Domain\Domain\OmniMind.DomainCore.csproj" />
 		<ProjectReference Include="..\OmniMind.Domain\Entities\OmniMind.Entities.csproj" />
+		<ProjectReference Include="..\OmniMind.Application\OmniMind.Ingestion\OmniMind.Ingestion.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\Messaging.RabbitMQ\OmniMind.Messaging.RabbitMQ.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\OmniMind.Infrastructure\OmniMind.Infrastructure.csproj" />
 		<ProjectReference Include="..\OmniMind.Infrastructure\OmniMind.QuartZ\OmniMind.QuartZ.csproj" />
