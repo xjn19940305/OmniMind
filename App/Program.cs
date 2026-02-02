@@ -40,14 +40,11 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["CONFIG"]))
     builder.Configuration.AddJsonStream(new MemoryStream(Encoding.UTF8.GetBytes(builder.Configuration["CONFIG"]!)));
 }
 
+builder.Configuration
+    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 var mySqlConnectionString = builder.Configuration["DB_CONNECTION"];
 var redisConnectionString = builder.Configuration["StackExchangeRedis:Connection"];
-
-// 支持消息队列场景的手动租户设置
-builder.Services.AddScoped<ITenantProvider, App.AuthenticationPolicy.CompositeTenantProvider>();
-
-// Ingestion 服务（文件解析和文本切片）
-builder.Services.AddIngestion();
 
 // Identity
 builder.Services.AddIdentity<User, Role>(options =>
@@ -324,6 +321,8 @@ builder.Services.AddDbContext<OmniMindDbContext>(setup =>
     });
 });
 #endregion
+// 支持消息队列场景的手动租户设置
+builder.Services.AddScoped<ITenantProvider, App.AuthenticationPolicy.CompositeTenantProvider>();
 // 注册minio对象存储服务
 builder.Services.AddMinioService(builder.Configuration);
 // 注册qdrant向量数据库服务
@@ -332,9 +331,11 @@ builder.Services.AddQdrantService(builder.Configuration);
 builder.Services.AddRabbitMQ(builder.Configuration);
 // 注册Ingestion服务（文件解析和文本切片）
 builder.Services.AddIngestion();
-
+// 注册阿里云向量化服务
+builder.Services.AddAlibabaCloudEmbedding(builder.Configuration);
 // 注册后台服务（文档处理消费者）
 builder.Services.AddHostedService<App.Workers.DocumentProcessingWorker>();
+
 
 // HttpClient & HealthChecks
 builder.Services.AddHttpClient();
@@ -350,7 +351,7 @@ if (builder.Configuration.GetValue<bool>("Init"))
 }
 
 // Middleware pipeline
-if (app.Environment.IsDevelopment())
+if (!app.Environment.EnvironmentName.Equals("Production", StringComparison.Ordinal))
 {
     app.UseSwagger();
 
