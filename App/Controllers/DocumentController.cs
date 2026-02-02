@@ -116,7 +116,7 @@ namespace App.Controllers
             // 计算文件 Hash (简化版，实际应该用 MD5 或 SHA256)
             var fileHash = $"{file.Length}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
 
-            // 确定内容类型
+            // 确定内容类型（MIME 类型）
             var contentType = DetermineContentType(fileName);
 
             // 创建文档记录
@@ -152,7 +152,7 @@ namespace App.Controllers
                     KnowledgeBaseId = knowledgeBaseId,
                     ObjectKey = objectKey,
                     FileName = fileName,
-                    ContentType = (int)contentType
+                    ContentType = contentType
                 };
 
                 await messagePublisher.PublishDocumentUploadAsync(uploadMessage);
@@ -467,23 +467,39 @@ namespace App.Controllers
         }
 
         /// <summary>
-        /// 根据文件名确定内容类型
+        /// 根据文件名确定内容类型（MIME 类型）
         /// </summary>
-        private ContentType DetermineContentType(string fileName)
+        private string DetermineContentType(string fileName)
         {
             var extension = Path.GetExtension(fileName).ToLowerInvariant();
             return extension switch
             {
-                ".pdf" => ContentType.Pdf,
-                ".doc" or ".docx" => ContentType.Docx,
-                ".ppt" or ".pptx" => ContentType.Pptx,
-                ".md" or ".markdown" => ContentType.Markdown,
-                ".txt" => ContentType.Markdown,
-                ".htm" or ".html" => ContentType.Web,
-                ".jpg" or ".jpeg" or ".png" or ".gif" or ".bmp" or ".webp" => ContentType.Image,
-                ".mp4" or ".avi" or ".mov" or ".wmv" or ".flv" or ".mkv" => ContentType.Video,
-                ".mp3" or ".wav" or ".flac" or ".aac" or ".ogg" => ContentType.Audio,
-                _ => ContentType.Markdown // 默认作为 Markdown 处理
+                ".pdf" => "application/pdf",
+                ".doc" => "application/msword",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".ppt" => "application/vnd.ms-powerpoint",
+                ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".md" or ".markdown" => "text/markdown",
+                ".txt" => "text/plain",
+                ".htm" or ".html" => "text/html",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".bmp" => "image/bmp",
+                ".webp" => "image/webp",
+                ".mp4" => "video/mp4",
+                ".avi" => "video/x-msvideo",
+                ".mov" => "video/quicktime",
+                ".wmv" => "video/x-ms-wmv",
+                ".flv" => "video/x-flv",
+                ".mkv" => "video/x-matroska",
+                ".mp3" => "audio/mpeg",
+                ".wav" => "audio/wav",
+                ".flac" => "audio/flac",
+                ".aac" => "audio/aac",
+                ".m4a" => "audio/mp4", // 或 audio/x-m4a
+                ".ogg" => "audio/ogg",
+                _ => "text/plain" // 默认作为纯文本处理
             };
         }
 
@@ -525,6 +541,9 @@ namespace App.Controllers
                 Language = document.Language,
                 Status = document.Status,
                 Error = document.Error,
+                Duration = document.Duration,
+                Transcription = document.Transcription,
+                SessionId = document.SessionId,
                 CreatedByUserId = document.CreatedByUserId,
                 CreatedAt = document.CreatedAt,
                 UpdatedAt = document.UpdatedAt,

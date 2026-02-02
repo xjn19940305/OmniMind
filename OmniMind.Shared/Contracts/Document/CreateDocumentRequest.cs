@@ -23,9 +23,9 @@ namespace OmniMind.Contracts.Document
         public string Title { get; init; } = string.Empty;
 
         /// <summary>
-        /// 内容类型
+        /// 内容类型（MIME 类型）
         /// </summary>
-        public ContentType ContentType { get; init; }
+        public string ContentType { get; init; } = string.Empty;
 
         /// <summary>
         /// 来源类型

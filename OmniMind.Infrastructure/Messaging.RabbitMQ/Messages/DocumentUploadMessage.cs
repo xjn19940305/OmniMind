@@ -31,9 +31,9 @@ namespace OmniMind.Messages
         public string FileName { get; init; } = string.Empty;
 
         /// <summary>
-        /// 内容类型
+        /// 内容类型（MIME 类型）
         /// </summary>
-        public int ContentType { get; init; }
+        public string ContentType { get; init; } = string.Empty;
 
         /// <summary>
         /// 消息创建时间

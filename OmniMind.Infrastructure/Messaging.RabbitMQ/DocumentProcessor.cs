@@ -57,11 +57,12 @@ namespace OmniMind.Messaging.RabbitMQ
                 logger?.LogInformation("[文档处理] 正在下载文件: {DocumentId}", document.Id);
                 var objectStorage = scope.ServiceProvider.GetRequiredService<IObjectStorage>();
                 var stream = await objectStorage.GetAsync(document.ObjectKey!);
-                var type = await objectStorage.StatAsync(document.ObjectKey!);
-                var contentType = type?.ContentType ?? "application/octet-stream";
 
-                // 3. 解析文档内容
-                logger?.LogInformation("[文档处理] 正在解析文档: {DocumentId}, ContentType={ContentType}",
+                // 使用 Document 表中存储的 ContentType（更准确）
+                var contentType = document.ContentType;
+
+                // 3. 解析文档内容/转写音频视频
+                logger?.LogInformation("[文档处理] 正在处理文件: {DocumentId}, ContentType={ContentType}",
                     document.Id, contentType);
 
                 var extractedText = await fileParser.ParseAsync(stream, contentType, document.Id);

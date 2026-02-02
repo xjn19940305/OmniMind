@@ -33,9 +33,9 @@ namespace OmniMind.Contracts.Document
         public string Title { get; init; } = string.Empty;
 
         /// <summary>
-        /// 内容类型
+        /// 内容类型（MIME 类型）
         /// </summary>
-        public ContentType ContentType { get; init; }
+        public string ContentType { get; init; } = string.Empty;
 
         /// <summary>
         /// 来源类型
@@ -71,6 +71,21 @@ namespace OmniMind.Contracts.Document
         /// 错误信息
         /// </summary>
         public string? Error { get; init; }
+
+        /// <summary>
+        /// 音频/视频时长（秒）
+        /// </summary>
+        public int? Duration { get; init; }
+
+        /// <summary>
+        /// 音频/视频转写文本
+        /// </summary>
+        public string? Transcription { get; init; }
+
+        /// <summary>
+        /// 会话ID
+        /// </summary>
+        public string? SessionId { get; init; }
 
         /// <summary>
         /// 创建人用户ID
