@@ -1,65 +1,79 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using OmniMind.Entities;
+using OmniMind.Abstractions.Tenant;
 using OmniMind.Enums;
 using OmniMind.Persistence.MySql;
+using System;
+using System.Reflection;
 
 namespace OmniMind.Messaging.RabbitMQ.Consumers
 {
-    /// <summary>
-    /// 文档处理消费者
-    /// 负责处理文档上传后的解析、切片、向量化等操作
-    /// </summary>
     public class DocumentProcessingConsumer : RabbitMQMessageConsumer
     {
-        private readonly IServiceProvider serviceProvider;
+        private readonly IServiceProvider _serviceProvider;
 
         public DocumentProcessingConsumer(
             IOptions<RabbitMQOptions> options,
             IServiceProvider serviceProvider)
             : base(options, options.Value.DocumentUploadQueue)
         {
-            this.serviceProvider = serviceProvider;
+            _serviceProvider = serviceProvider;
         }
 
-        /// <summary>
-        /// 开始消费文档上传消息
-        /// </summary>
-        public void StartConsuming()
+        public void StartConsuming(
+            Func<int> getInFlight,
+            Action<int> setInFlight,
+            CancellationToken stoppingToken)
         {
-            StartConsuming<Messages.DocumentUploadMessage>(HandleDocumentUploadAsync);
+            StartConsuming<Messages.DocumentUploadMessage>(
+                HandleDocumentUploadAsync,
+                getInFlight,
+                setInFlight,
+                stoppingToken);
         }
 
-        /// <summary>
-        /// 处理文档上传消息
-        /// </summary>
-        private async Task HandleDocumentUploadAsync(Messages.DocumentUploadMessage message)
+        private async Task HandleDocumentUploadAsync(Messages.DocumentUploadMessage message, CancellationToken token)
         {
-            Console.WriteLine($"[文档处理] 开始处理文档: DocumentId={message.DocumentId}, TenantId={message.TenantId}");
-
-            using var scope = serviceProvider.CreateScope();
+            using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
-
+            var tenantProvider = scope.ServiceProvider.GetService<ITenantProvider>();
+            var logger = scope.ServiceProvider.GetService<Microsoft.Extensions.Logging.ILogger<DocumentProcessingConsumer>>();
             try
             {
-                // 1. 查找文档
-                var document = await dbContext.Documents.IgnoreQueryFilters().Where(x => x.Id == message.DocumentId && x.TenantId == message.TenantId).FirstOrDefaultAsync();
+
+                tenantProvider?.SetTenant(message.TenantId);
+                var document = await dbContext.Documents.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(x => x.Id == message.DocumentId && x.TenantId == message.TenantId, token);
                 if (document == null)
                 {
-                    Console.WriteLine($"[文档处理] 文档不存在: {message.DocumentId}");
+                    logger?.LogWarning("文档不存在 DocumentId={DocumentId} TenantId={TenantId}",
+                        message.DocumentId, message.TenantId);
                     return;
                 }
+                await DocumentProcessor.ProcessDocumentAsync(scope, document, dbContext, logger);
+                logger?.LogInformation("文档处理完成 DocumentId={DocumentId} TenantId={TenantId}",
+                    message.DocumentId, message.TenantId);
 
-                // 2. 执行文档处理逻辑
-                await DocumentProcessor.ProcessDocumentAsync(document, dbContext, null);
-
-                Console.WriteLine($"[文档处理] 文档处理完成: DocumentId={message.DocumentId}");
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"[文档处理] 文档处理失败: DocumentId={message.DocumentId}, Error={ex.Message}");
-                throw; // 重新抛出异常，让消息被Nack
+                try
+                {
+                    await dbContext.Documents.IgnoreQueryFilters()
+                        .Where(x => x.Id == message.DocumentId && x.TenantId == message.TenantId)
+                        .ExecuteUpdateAsync(d => d
+                            .SetProperty(x => x.Status, DocumentStatus.Failed)
+                            .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), token);
+                }
+                catch { }
+
+                throw;
+            }
+            finally
+            {
+                tenantProvider?.ClearTenant();
             }
         }
     }

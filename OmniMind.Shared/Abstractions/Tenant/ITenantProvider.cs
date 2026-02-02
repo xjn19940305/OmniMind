@@ -11,5 +11,7 @@ namespace OmniMind.Abstractions.Tenant
     {
         string? TenantId { get; }          // 0 表示未解析/系统级
         bool IsResolved { get; }
+        void SetTenant(string tenantId);
+        void ClearTenant();
     }
 }

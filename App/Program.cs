@@ -25,6 +25,7 @@ using System.Text;
 using OmniMind.Storage.Minio;
 using OmniMind.Vector.Qdrant;
 using OmniMind.Messaging.RabbitMQ;
+using OmniMind.Ingestion;
 using RabbitMQ.Client;
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,8 +43,11 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["CONFIG"]))
 var mySqlConnectionString = builder.Configuration["DB_CONNECTION"];
 var redisConnectionString = builder.Configuration["StackExchangeRedis:Connection"];
 
-// Tenant Provider (must be registered before DbContext)
-builder.Services.AddScoped<ITenantProvider, JwtTenantProvider>();
+// 支持消息队列场景的手动租户设置
+builder.Services.AddScoped<ITenantProvider, App.AuthenticationPolicy.CompositeTenantProvider>();
+
+// Ingestion 服务（文件解析和文本切片）
+builder.Services.AddIngestion();
 
 // Identity
 builder.Services.AddIdentity<User, Role>(options =>
@@ -177,44 +181,21 @@ builder.Services.AddQuartz(options =>
     // DocumentProcessingJob - 文档处理任务
     // 模式1: 定时批量处理模式（推荐用于生产环境）
     // 每1分钟执行一次，每次处理10个待上传的文档
-    options.AddJob<DocumentProcessingJob>(config =>
-    {
-        config.WithIdentity("DocumentProcessingJob")
-        .StoreDurably()
-        .UsingJobData("mode", "continuous")           // batch=批量模式, continuous=持续模式
-        .UsingJobData("batchSize", 50)           // 每批处理文档数量
-        .UsingJobData("timeoutSeconds", 60);     // 超时时间（秒）
-    })
-    .AddTrigger(opt =>
-    {
-        opt.WithIdentity("DocumentProcessingJobTrigger")
-        .ForJob("DocumentProcessingJob")
-        // 使用Cron表达式：每分钟执行一次
-        .WithCronSchedule("0 * * * * ?")
-        // 或者使用简单调度：每1分钟执行一次
-        // .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
-        .StartNow();
-    });
-
-    // 模式2: 持续监听模式（可选）
-    // 启动后持续监听RabbitMQ队列，适合高吞吐场景
-    // 注意：由于Quartz集群机制，只有一个节点会运行此Job
-    /*
-    options.AddJob<DocumentProcessingJob>(config =>
-    {
-        config.WithIdentity("DocumentProcessingJobContinuous")
-        .StoreDurably()
-        .UsingJobData("mode", "continuous");  // 持续模式
-    })
-    .AddTrigger(opt =>
-    {
-        opt.WithIdentity("DocumentProcessingJobContinuousTrigger")
-        .ForJob("DocumentProcessingJobContinuous")
-        // 每小时检查一次，如果Job未运行则启动（容错机制）
-        .WithCronSchedule("0 0 * * * ?")
-        .StartNow();
-    });
-    */
+    //options.AddJob<DocumentProcessingJob>(config =>
+    //{
+    //    config.WithIdentity("DocumentProcessingJob")
+    //    .StoreDurably()
+    //    .UsingJobData("batchSize", 50)           // 每批处理文档数量
+    //    .UsingJobData("timeoutSeconds", 60);     // 超时时间（秒）
+    //})
+    //.AddTrigger(opt =>
+    //{
+    //    opt.WithIdentity("DocumentProcessingJobTrigger")
+    //    .ForJob("DocumentProcessingJob")
+    //    // 使用Cron表达式：每分钟执行一次
+    //    .WithCronSchedule("0 * * * * ?")
+    //    .StartNow();
+    //});
 
     options.UsePersistentStore(po =>
     {
@@ -224,7 +205,7 @@ builder.Services.AddQuartz(options =>
     });
 });
 
-// Swagger
+#region Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -288,8 +269,9 @@ builder.Services.AddSwaggerGen(c =>
     var entitiesXmlFile = $"{Assembly.Load("OmniMind.Entities").GetName().Name}.xml";
     c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, entitiesXmlFile), true);
 });
+#endregion
 
-// HSTS, CORS, ForwardedHeaders, DataProtection
+#region HSTS, CORS, ForwardedHeaders, DataProtection
 builder.Services.AddHsts(o =>
 {
     o.IncludeSubDomains = true;
@@ -317,21 +299,23 @@ builder.Services.AddDataProtection()
     .PersistKeysToStackExchangeRedis(
         StackExchange.Redis.ConnectionMultiplexer.Connect(builder.Configuration["DataProtection:Redis:Connection"]!),
         builder.Configuration["DataProtection:Redis:Key"]);
+#endregion
 
-// Redis (single connection multiplexer)
+#region  Redis (single connection multiplexer)
+
 builder.Services.AddSingleton(sp =>
 {
     return StackExchange.Redis.ConnectionMultiplexer.Connect(redisConnectionString!);
 });
-
-// Distributed Cache
+#endregion
+#region  Distributed Cache
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = redisConnectionString;
     options.InstanceName = builder.Configuration["StackExchangeRedis:Prefix"];
 });
-
-// DbContext
+#endregion
+#region mysql
 builder.Services.AddDbContext<OmniMindDbContext>(setup =>
 {
     setup.UseMySql(mySqlConnectionString, ServerVersion.AutoDetect(mySqlConnectionString), options =>
@@ -339,15 +323,18 @@ builder.Services.AddDbContext<OmniMindDbContext>(setup =>
         options.MigrationsAssembly(Assembly.Load("OmniMind.Persistence.MySql").FullName);
     });
 });
-
+#endregion
 // 注册minio对象存储服务
 builder.Services.AddMinioService(builder.Configuration);
 // 注册qdrant向量数据库服务
 builder.Services.AddQdrantService(builder.Configuration);
 // 注册RabbitMQ消息服务
 builder.Services.AddRabbitMQ(builder.Configuration);
+// 注册Ingestion服务（文件解析和文本切片）
+builder.Services.AddIngestion();
 
-
+// 注册后台服务（文档处理消费者）
+builder.Services.AddHostedService<App.Workers.DocumentProcessingWorker>();
 
 // HttpClient & HealthChecks
 builder.Services.AddHttpClient();

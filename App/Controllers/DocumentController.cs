@@ -102,8 +102,10 @@ namespace App.Controllers
             // 上传文件到 MinIO（带元数据）
             try
             {
+                // 根据文件扩展名确定正确的 MIME 类型
+                var mimeType = GetMimeTypeFromExtension(fileName);
                 using var stream = file.OpenReadStream();
-                await objectStorage.PutAsync(objectKey, stream, file.ContentType, metadata);
+                await objectStorage.PutAsync(objectKey, stream, mimeType, metadata);
             }
             catch (Exception ex)
             {
@@ -411,6 +413,58 @@ namespace App.Controllers
         }
 
         #region Private Methods
+
+        /// <summary>
+        /// 根据文件扩展名获取 MIME 类型
+        /// </summary>
+        private string GetMimeTypeFromExtension(string fileName)
+        {
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            return extension switch
+            {
+                ".pdf" => "application/pdf",
+                ".doc" => "application/msword",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".ppt" => "application/vnd.ms-powerpoint",
+                ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".xls" => "application/vnd.ms-excel",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".md" or ".markdown" => "text/markdown",
+                ".txt" => "text/plain",
+                ".htm" or ".html" => "text/html",
+                ".css" => "text/css",
+                ".js" => "application/javascript",
+                ".json" => "application/json",
+                ".xml" => "application/xml",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".bmp" => "image/bmp",
+                ".webp" => "image/webp",
+                ".svg" => "image/svg+xml",
+                ".ico" => "image/x-icon",
+                ".mp4" => "video/mp4",
+                ".avi" => "video/x-msvideo",
+                ".mov" => "video/quicktime",
+                ".wmv" => "video/x-ms-wmv",
+                ".flv" => "video/x-flv",
+                ".mkv" => "video/x-matroska",
+                ".webm" => "video/webm",
+                ".mp3" => "audio/mpeg",
+                ".wav" => "audio/wav",
+                ".flac" => "audio/flac",
+                ".aac" => "audio/aac",
+                ".ogg" => "audio/ogg",
+                ".wma" => "audio/x-ms-wma",
+                ".m4a" => "audio/mp4",
+                ".zip" => "application/zip",
+                ".rar" => "application/x-rar-compressed",
+                ".7z" => "application/x-7z-compressed",
+                ".tar" => "application/x-tar",
+                ".gz" => "application/gzip",
+                _ => "application/octet-stream"
+            };
+        }
 
         /// <summary>
         /// 根据文件名确定内容类型
