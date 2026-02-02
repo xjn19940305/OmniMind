@@ -17,6 +17,8 @@ namespace OmniMind.Entities
     [Table("documents")]
     [Index(nameof(TenantId), nameof(KnowledgeBaseId), nameof(CreatedAt))]
     [Index(nameof(TenantId), nameof(FileHash))]
+    [Index(nameof(TenantId), nameof(SessionId))]
+    [Index(nameof(TenantId), nameof(ContentType))]
     public class Document : ITenantEntity
     {
         /// <summary>
@@ -33,9 +35,8 @@ namespace OmniMind.Entities
         public required string TenantId { get; set; }
 
         /// <summary>
-        /// 所属知识库ID
+        /// 所属知识库ID（可选，媒体文件/临时附件可为 NULL）
         /// </summary>
-        [Required]
         [Column("knowledge_base_id")]
         public string? KnowledgeBaseId { get; set; }
 
@@ -58,9 +59,8 @@ namespace OmniMind.Entities
         public Folder? Folder { get; set; }
 
         /// <summary>
-        /// 导入归属工作空间ID（追溯“从哪个空间导入/归档”）
+        /// 导入归属工作空间ID（追溯"从哪个空间导入/归档"，媒体文件/临时附件可为 NULL）
         /// </summary>
-        [Required]
         [Column("workspace_id")]
         public string? WorkspaceId { get; set; }
 
@@ -78,11 +78,12 @@ namespace OmniMind.Entities
         public string Title { get; set; } = default!;
 
         /// <summary>
-        /// 内容类型（PDF/图片/音频/视频等）
+        /// 内容类型（MIME 类型）：application/pdf, audio/mp3, video/mp4, image/png 等
         /// </summary>
         [Required]
         [Column("content_type")]
-        public ContentType ContentType { get; set; }
+        [MaxLength(255)]
+        public string ContentType { get; set; } = default!;
 
         /// <summary>
         /// 来源类型（上传/URL/导入）
@@ -131,6 +132,25 @@ namespace OmniMind.Entities
         [MaxLength(512)]
         [Column("error")]
         public string? Error { get; set; }
+
+        /// <summary>
+        /// 音频/视频时长（秒）
+        /// </summary>
+        [Column("duration")]
+        public int? Duration { get; set; }
+
+        /// <summary>
+        /// 音频/视频转写文本
+        /// </summary>
+        [Column("transcription", TypeName = "longtext")]
+        public string? Transcription { get; set; }
+
+        /// <summary>
+        /// 会话ID（用于关联聊天临时附件）
+        /// </summary>
+        [MaxLength(64)]
+        [Column("session_id")]
+        public string? SessionId { get; set; }
 
         /// <summary>
         /// 创建人用户ID（Identity 用户ID）

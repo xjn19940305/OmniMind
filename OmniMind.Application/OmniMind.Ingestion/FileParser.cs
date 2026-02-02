@@ -10,7 +10,7 @@ namespace OmniMind.Ingestion
 {
     /// <summary>
     /// 默认文件解析器实现 - 跨平台版本
-    /// 支持：PDF、DOCX、TXT、Markdown
+    /// 支持：PDF、DOCX、TXT、Markdown、音频转写、视频转写
     /// </summary>
     public class FileParser : IFileParser
     {
@@ -26,7 +26,9 @@ namespace OmniMind.Ingestion
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "text/plain",
-            "text/markdown"
+            "text/markdown",
+            "audio/mp3", "audio/mpeg", "audio/wav", "audio/m4a", "audio/x-m4a",
+            "video/mp4", "video/mpeg", "video/quicktime"
         };
 
         public Task<string> ParseAsync(
@@ -40,14 +42,53 @@ namespace OmniMind.Ingestion
                 stream.Position = 0;
             }
 
-            return contentType.ToLowerInvariant() switch
+            // 标准化 content type（处理 audio/mpeg vs audio/mp3 等）
+            var normalizedContentType = contentType.ToLowerInvariant();
+
+            return normalizedContentType switch
             {
                 "application/pdf" => ParsePdfAsync(stream, cancellationToken),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     => Task.Run(() => ParseDocx(stream), cancellationToken),
                 "text/plain" or "text/markdown" => ParseTextAsync(stream, cancellationToken),
+
+                // 音频/视频转写（统一使用 FunASR）
+                var ct when ct.StartsWith("audio/") || ct.StartsWith("video/")
+                    => ParseMediaAsync(stream, ct, cancellationToken),
+
                 _ => throw new NotSupportedException($"不支持的文件类型: {contentType}")
             };
+        }
+
+        /// <summary>
+        /// 音频/视频转写（使用 FunASR）
+        /// </summary>
+        private async Task<string> ParseMediaAsync(Stream stream, string contentType, CancellationToken ct)
+        {
+            try
+            {
+                _logger?.LogInformation("开始媒体转写: ContentType={ContentType}", contentType);
+
+                // TODO: 在这里实现 FunASR 转写逻辑
+                // 1. 如果是视频，先提取音频（可以使用 FFmpeg）
+                // 2. 调用 FunASR 进行语音转写
+                // 3. 返回转写文本
+
+                // 示例代码（需要实现）：
+                // if (contentType.StartsWith("video/"))
+                // {
+                //     stream = await ExtractAudioAsync(stream);
+                // }
+                // var transcription = await funAsrService.TranscribeAsync(stream);
+                // return transcription.Text;
+
+                throw new NotImplementedException("FunASR 转写功能待实现，请在这里集成 FunASR 服务");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "媒体转写失败: ContentType={ContentType}", contentType);
+                throw new InvalidOperationException("媒体转写失败", ex);
+            }
         }
 
         public bool IsSupported(string contentType)
