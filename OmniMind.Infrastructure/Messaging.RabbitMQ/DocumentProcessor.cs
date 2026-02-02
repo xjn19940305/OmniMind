@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.AI;
 using OmniMind.Abstractions.Ingestion;
 using OmniMind.Abstractions.Storage;
 using OmniMind.Entities;
@@ -133,13 +134,86 @@ namespace OmniMind.Messaging.RabbitMQ
 
                 // 5. 向量化
                 logger?.LogInformation("[文档处理] 正在向量化文档: {DocumentId}", document.Id);
-                // TODO: 实现向量化逻辑
-                // - 调用嵌入模型（如OpenAI Embeddings、本地模型）
-                // - 将向量存储到Qdrant
-                await Task.Delay(1000); // 模拟向量化耗时
 
-                // 6. 存储向量到Qdrant
-                // TODO: 存储向量
+                var embeddingGenerator = scope.ServiceProvider.GetService<IEmbeddingGenerator<string, Embedding<float>>>();
+                if (embeddingGenerator == null)
+                {
+                    throw new InvalidOperationException("IEmbeddingGenerator 服务未注册");
+                }
+
+                // 重新加载切片（包含新插入的切片）
+                var allChunks = await dbContext.Chunks.IgnoreQueryFilters()
+                    .Where(c => c.DocumentId == document.Id && c.TenantId == document.TenantId)
+                    .OrderBy(c => c.ChunkIndex)
+                    .ToListAsync();
+
+                if (allChunks.Count == 0)
+                {
+                    logger?.LogWarning("[文档处理] 没有切片需要向量化: DocumentId={DocumentId}", document.Id);
+                }
+                else
+                {
+                    // 批量向量化
+                    var chunkTexts = allChunks.Select(c => c.Content).ToList();
+                    var embeddings = await embeddingGenerator.GenerateAsync(chunkTexts);
+
+                    if (embeddings.Count != allChunks.Count)
+                    {
+                        throw new InvalidOperationException($"向量化数量不匹配: 期望 {allChunks.Count}, 实际 {embeddings.Count}");
+                    }
+
+                    // 6. 存储向量到 Qdrant
+                    logger?.LogInformation("[文档处理] 正在存储向量到 Qdrant: {DocumentId}", document.Id);
+                    var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
+
+                    // 获取向量维度（从第一个 embedding 获取）
+                    var vectorSize = embeddings.FirstOrDefault()?.Vector.Length ?? 1024;
+
+                    // 确保集合存在
+                    await vectorStore.EnsureCollectionAsync(
+                        "documents",
+                        new VectorCollectionSpec(vectorSize, "cosine")
+                    );
+
+                    // 准备向量点
+                    var vectorPoints = new List<VectorPoint>();
+                    for (int i = 0; i < allChunks.Count; i++)
+                    {
+                        var chunk = allChunks[i];
+                        var embedding = embeddings[i];
+
+                        // 使用 Chunk ID 作为向量点 ID
+                        var pointId = chunk.Id;
+
+                        // 构建元数据
+                        var payload = new Dictionary<string, object>
+                        {
+                            { "tenant_id", chunk.TenantId },
+                            { "document_id", chunk.DocumentId },
+                            { "chunk_index", chunk.ChunkIndex },
+                            { "content", chunk.Content }
+                        };
+
+                        // 从 Embedding<float> 获取向量数组
+                        var vectorArray = embedding.Vector.ToArray();
+
+                        vectorPoints.Add(new VectorPoint(pointId, vectorArray, payload));
+                    }
+
+                    // 批量插入向量
+                    await vectorStore.UpsertAsync("documents", vectorPoints);
+
+                    // 更新切片的向量点 ID
+                    for (int i = 0; i < allChunks.Count; i++)
+                    {
+                        allChunks[i].VectorPointId = allChunks[i].Id;
+                    }
+
+                    await dbContext.SaveChangesAsync();
+
+                    logger?.LogInformation("[文档处理] 向量化完成: DocumentId={DocumentId}, 向量数量={VectorCount}",
+                        document.Id, vectorPoints.Count);
+                }
 
                 // 7. 更新状态为"已完成"
                 await dbContext.Documents.IgnoreQueryFilters()
