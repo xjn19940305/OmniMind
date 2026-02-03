@@ -239,12 +239,12 @@ namespace OmniMind.Vector.Qdrant
 
         private string GetQualifiedCollectionName(string collection, string? tenantId = "0")
         {
-            return $"tenant-{tenantId}_{collection}";
+            return $"documents_kb_{collection}";
         }
 
         public static string GenerateTenantCollectionName(string tenantId, string collectionName)
         {
-            return $"tenant-{tenantId}_{collectionName}";
+            return $"documents_kb_{collectionName}";
         }
 
         private async Task<List<string>> ListCollectionsAsync(CancellationToken ct)

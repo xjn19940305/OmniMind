@@ -19,6 +19,7 @@ using OmniMind.Entities;
 using OmniMind.Infrastructure;
 using OmniMind.Persistence.MySql;
 using OmniMind.QuartZ;
+using OmniMind.Realtime.SignalR;
 using Quartz;
 using System.Reflection;
 using System.Text;
@@ -333,9 +334,12 @@ builder.Services.AddRabbitMQ(builder.Configuration);
 builder.Services.AddIngestion();
 // 注册阿里云向量化服务
 builder.Services.AddAlibabaCloudEmbedding(builder.Configuration);
+// 注册阿里云百练 ChatClient 服务
+builder.Services.AddAlibabaCloudChatClient(builder.Configuration);
+// 注册 SignalR 实时通信服务（支持 Redis 背板）
+builder.Services.AddSignalRServices(builder.Configuration);
 // 注册后台服务（文档处理消费者）
 builder.Services.AddHostedService<App.Workers.DocumentProcessingWorker>();
-
 
 // HttpClient & HealthChecks
 builder.Services.AddHttpClient();
@@ -351,7 +355,7 @@ if (builder.Configuration.GetValue<bool>("Init"))
 }
 
 // Middleware pipeline
-if (!app.Environment.EnvironmentName.Equals("Production", StringComparison.Ordinal))
+if (!app.Environment.IsProduction())
 {
     app.UseSwagger();
 
@@ -381,6 +385,9 @@ app.MapHealthChecks("/liveness", new HealthCheckOptions
 {
     Predicate = r => r.Name.Contains("self")
 });
+
+// SignalR Hub 端点映射
+app.MapHub<IngestionHub>("/hubs/ingestion");
 
 app.MapControllers();
 

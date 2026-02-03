@@ -169,10 +169,10 @@ namespace OmniMind.Messaging.RabbitMQ
 
                     // 获取向量维度（从第一个 embedding 获取）
                     var vectorSize = embeddings.FirstOrDefault()?.Vector.Length ?? 1024;
-
+                    var documentCollectionName = $"{document?.KnowledgeBaseId ?? string.Empty}";
                     // 确保集合存在
                     await vectorStore.EnsureCollectionAsync(
-                        "documents",
+                        documentCollectionName,
                         new VectorCollectionSpec(vectorSize, "cosine")
                     );
 
@@ -202,7 +202,7 @@ namespace OmniMind.Messaging.RabbitMQ
                     }
 
                     // 批量插入向量
-                    await vectorStore.UpsertAsync("documents", vectorPoints);
+                    await vectorStore.UpsertAsync(documentCollectionName, vectorPoints);
 
                     // 更新切片的向量点 ID
                     for (int i = 0; i < allChunks.Count; i++)

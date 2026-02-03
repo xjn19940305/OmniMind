@@ -100,14 +100,14 @@ namespace OmniMind.Vector.Qdrant
             );
         }
 
-        private string GetQualifiedCollectionName(string collection, string? tenantId = "0")
+        private string GetQualifiedCollectionName(string collection)
         {
-            return $"tenant-{tenantId}_{collection}";
+            return $"{collection}";
         }
 
-        public static string GenerateTenantCollectionName(string tenantId, string collectionName)
+        public static string GenerateTenantCollectionName(string collectionName)
         {
-            return $"tenant-{tenantId}_{collectionName}";
+            return $"{collectionName}";
         }
 
         private Filter ToQdrantFilter(VectorFilter filter)
