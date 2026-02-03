@@ -45,7 +45,6 @@ namespace App.Controllers
                 return BadRequest(new ErrorResponse { Message = "知识库名称长度不能超过128个字符" });
             }
 
-            var tenantId = GetTenantId();
             var currentUserId = GetUserId();
 
             // 获取用户的第一个工作空间
@@ -61,7 +60,6 @@ namespace App.Controllers
 
             var knowledgeBase = new KnowledgeBase
             {
-                TenantId = tenantId,
                 Name = request.Name.Trim(),
                 Description = request.Description?.Trim(),
                 Visibility = request.Visibility,
@@ -69,12 +67,9 @@ namespace App.Controllers
                 CreatedAt = DateTimeOffset.UtcNow
             };
 
-
-
             // 自动挂载到用户的第一个工作空间
             var link = new KnowledgeBaseWorkspace
             {
-                TenantId = tenantId,
                 KnowledgeBaseId = knowledgeBase.Id,
                 WorkspaceId = firstWorkspace.Id,
                 SortOrder = 0,
@@ -257,7 +252,6 @@ namespace App.Controllers
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> MountToWorkspace(string id, [FromBody] MountKnowledgeBaseRequest request)
         {
-            var tenantId = GetTenantId();
 
             var knowledgeBase = await dbContext.KnowledgeBases.FindAsync(id);
             if (knowledgeBase == null)
@@ -282,7 +276,6 @@ namespace App.Controllers
 
             var link = new KnowledgeBaseWorkspace
             {
-                TenantId = tenantId,
                 KnowledgeBaseId = id,
                 WorkspaceId = request.WorkspaceId,
                 AliasName = request.AliasName?.Trim(),
@@ -319,7 +312,7 @@ namespace App.Controllers
         {
             var link = await dbContext.KnowledgeBaseWorkspaces
                 .FirstOrDefaultAsync(l => l.KnowledgeBaseId == id && l.WorkspaceId == workspaceId);
-              //if(await dbContext.KnowledgeBaseWorkspaces.Where(x=>x.))
+            //if(await dbContext.KnowledgeBaseWorkspaces.Where(x=>x.))
             if (link == null)
             {
                 return NotFound(new ErrorResponse { Message = "该知识库未挂载到此工作空间" });

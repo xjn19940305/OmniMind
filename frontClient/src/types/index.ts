@@ -52,6 +52,7 @@ export interface Attachment {
   size?: number
   thumbnail?: string
   metadata?: Record<string, any>
+  status?: DocumentStatus
 }
 
 // Enums

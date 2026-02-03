@@ -16,8 +16,8 @@ namespace OmniMind.Entities
     /// 一个租户下可拥有多个工作空间。
     /// </summary>
     [Table("workspaces")]
-    [Index(nameof(TenantId), nameof(Name))]
-    public class Workspace : ITenantEntity
+    [Index(nameof(Name))]
+    public class Workspace
     {
         /// <summary>
         /// 工作空间主键
@@ -25,13 +25,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-
-        /// <summary>
-        /// 租户ID（行级隔离字段）
-        /// </summary>
-        [Required]
-        [Column("tenant_id")]
-        public required string TenantId { get; set; }
 
         /// <summary>
         /// 工作空间名称

@@ -150,11 +150,11 @@ namespace OmniMind.Storage.Minio
         /// - tenant-019c18fe/videos/019c1923-20f4-7858-b5fb-0721220fb35b.mp4
         /// - tenant-019c18fe/images/019c1923-20f4-7858-b5fb-0721220fb35b.png
         /// </summary>
-        public static string GenerateTenantObjectKey(string tenantId, string docId, string fileName)
+        public static string GenerateTenantObjectKey(string userId, string docId, string fileName)
         {
             var extension = Path.GetExtension(fileName).ToLowerInvariant();
             var fileType = GetFileTypeDirectory(extension);
-            return $"tenant-{tenantId}/{fileType}/{docId}{extension}";
+            return $"{userId}/{fileType}/{docId}{extension}";
         }
 
         /// <summary>

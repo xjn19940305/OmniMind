@@ -14,9 +14,9 @@ namespace OmniMind.Entities
     /// 导入任务：用于异步解析/切片/向量化/索引流水线的状态跟踪（可配合 SignalR 推送进度）。
     /// </summary>
     [Table("ingestion_tasks")]
-    [Index(nameof(TenantId), nameof(DocumentId), nameof(Status))]
-    [Index(nameof(TenantId), nameof(WorkspaceId), nameof(KnowledgeBaseId), nameof(CreatedAt))]
-    public class IngestionTask : ITenantEntity
+    [Index(nameof(DocumentId), nameof(Status))]
+    [Index(nameof(WorkspaceId), nameof(KnowledgeBaseId), nameof(CreatedAt))]
+    public class IngestionTask
     {
         /// <summary>
         /// 主键
@@ -24,13 +24,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-
-        /// <summary>
-        /// 租户ID（行级隔离字段）
-        /// </summary>
-        [Required]
-        [Column("tenant_id")]
-        public required string TenantId { get; set; }
 
         /// <summary>
         /// 工作空间ID（任务归属空间）

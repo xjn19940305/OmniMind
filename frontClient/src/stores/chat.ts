@@ -27,15 +27,24 @@ export const useChatStore = defineStore('chat', () => {
   function addMessage(sessionId: string, message: ChatMessage) {
     const session = sessions.value.find(s => s.id === sessionId)
     if (session) {
+      // 使用 push 触发响应式
       session.messages.push(message)
       session.updatedAt = new Date().toISOString()
+      console.log('[Chat Store] 添加消息后，消息数量:', session.messages.length)
     }
   }
 
   function updateMessage(sessionId: string, messageIndex: number, content: string) {
     const session = sessions.value.find(s => s.id === sessionId)
     if (session && session.messages[messageIndex]) {
-      session.messages[messageIndex].content = content
+      // 创建新对象来确保 Vue 3 响应式更新
+      session.messages[messageIndex] = {
+        ...session.messages[messageIndex],
+        content
+      }
+      console.log('[Chat Store] 更新消息:', { sessionId, messageIndex, contentLength: content.length })
+    } else {
+      console.warn('[Chat Store] 更新消息失败: session=', session, 'messageIndex=', messageIndex)
     }
   }
 

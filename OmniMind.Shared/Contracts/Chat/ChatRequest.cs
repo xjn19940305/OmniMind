@@ -149,6 +149,58 @@ namespace OmniMind.Contracts.Chat
         /// 会话ID（可选，用于关联聊天）
         /// </summary>
         public string? SessionId { get; init; }
+
+        /// <summary>
+        /// 文件哈希值（可选，用于文件去重）
+        /// </summary>
+        public string? FileHash { get; init; }
+    }
+
+    /// <summary>
+    /// 检查文件哈希请求
+    /// </summary>
+    public record CheckFileHashRequest
+    {
+        /// <summary>
+        /// 文件哈希值
+        /// </summary>
+        public string FileHash { get; init; } = string.Empty;
+    }
+
+    /// <summary>
+    /// 检查文件哈希响应（返回已存在的文件信息或null）
+    /// </summary>
+    public record CheckFileHashResponse
+    {
+        /// <summary>
+        /// 文档ID
+        /// </summary>
+        public string Id { get; init; } = string.Empty;
+
+        /// <summary>
+        /// 文件名
+        /// </summary>
+        public string Name { get; init; } = string.Empty;
+
+        /// <summary>
+        /// 附件类型
+        /// </summary>
+        public string Type { get; init; } = string.Empty;
+
+        /// <summary>
+        /// 文件URL
+        /// </summary>
+        public string Url { get; init; } = string.Empty;
+
+        /// <summary>
+        /// 文件大小（字节）
+        /// </summary>
+        public long Size { get; init; }
+
+        /// <summary>
+        /// 状态（5=已索引/已就绪）
+        /// </summary>
+        public int Status { get; init; }
     }
 
     /// <summary>

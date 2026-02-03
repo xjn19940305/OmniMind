@@ -69,7 +69,7 @@ namespace App.Controllers
             {
                 return BadRequest(new { message = "手机号格式不正确" });
             }
-            var user = await _userManager.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
             if (user == null)
             {
                 user = new User();
@@ -97,7 +97,7 @@ namespace App.Controllers
                 return BadRequest(new { message = "手机号和验证码不能为空" });
             }
 
-            var user = await _userManager.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
             if (user == null)
             {
                 user = new User();
@@ -210,7 +210,6 @@ namespace App.Controllers
                     Name = $"{user.PhoneNumber}的工作空间",
                     Type = WorkspaceType.Personal,
                     OwnerUserId = user.Id,
-                    TenantId = request.TenantId,
                     CreatedAt = DateTime.UtcNow
                 };
                 dbContext.Workspaces.Add(workspace);
@@ -221,7 +220,6 @@ namespace App.Controllers
                     WorkspaceId = workspace.Id,
                     UserId = user.Id,
                     Role = WorkspaceRole.Owner,
-                    TenantId = request.TenantId,
                     CreatedAt = DateTime.UtcNow
                 };
                 dbContext.WorkspaceMembers.Add(member);
@@ -236,8 +234,8 @@ namespace App.Controllers
 
             if (await _signInManager.CanSignInAsync(user))
             {
-                var (token, jti) = await GenerateJwtTokenAsync(user, tenant.Id);
-                var refreshToken = await GenerateRefreshTokenAsync(user, jti, tenant.Id);
+                var (token, jti) = await GenerateJwtTokenAsync(user);
+                var refreshToken = await GenerateRefreshTokenAsync(user, jti);
                 var Roles = await _userManager.GetRolesAsync(user);
                 return Ok(new
                 {
@@ -318,8 +316,8 @@ namespace App.Controllers
             storedRefreshToken.IsUsed = true;
 
             // 生成新的Token和RefreshToken
-            var (newToken, newJti) = await GenerateJwtTokenAsync(user, storedRefreshToken.TenantId);
-            var newRefreshToken = await GenerateRefreshTokenAsync(user, newJti, storedRefreshToken.TenantId);
+            var (newToken, newJti) = await GenerateJwtTokenAsync(user);
+            var newRefreshToken = await GenerateRefreshTokenAsync(user, newJti);
 
 
             storedRefreshToken.ReplacedByTokenId = newRefreshToken.Id;
@@ -383,14 +381,13 @@ namespace App.Controllers
         /// <summary>
         /// 生成 RefreshToken
         /// </summary>
-        private async Task<RefreshToken> GenerateRefreshTokenAsync(User user, string jwtId, string tenantId)
+        private async Task<RefreshToken> GenerateRefreshTokenAsync(User user, string jwtId)
         {
             var refreshToken = new RefreshToken
             {
                 Token = Guid.NewGuid().ToString("N"),
                 JwtId = jwtId,
                 UserId = user.Id,
-                TenantId = tenantId,
                 CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(30),
                 DeviceInfo = Request.Headers["User-Agent"].ToString()
@@ -426,14 +423,13 @@ namespace App.Controllers
         /// <summary>
         /// 生成 JWT Token
         /// </summary>
-        private async Task<(string token, string jti)> GenerateJwtTokenAsync(User user, string tenantId)
+        private async Task<(string token, string jti)> GenerateJwtTokenAsync(User user)
         {
 
             // 创建 Claims
             var jti = Guid.NewGuid().ToString();
             var claims = new List<Claim>
             {
-                new Claim("tenant_id",tenantId),
                 new Claim(JwtClaimTypes.PhoneNumber, user.PhoneNumber ?? ""),
                 new Claim(JwtClaimTypes.Name, user.UserName ?? ""),
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id),

@@ -11,33 +11,6 @@ namespace App.Controllers
     [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public abstract class BaseController : ControllerBase
     {
-        /// <summary>
-        /// 获取当前用户的租户ID
-        /// </summary>
-        /// <exception cref="UnauthorizedAccessException">当无法从 Token 中获取租户信息时抛出</exception>
-        protected string GetTenantId()
-        {
-            var tenantIdClaim = User.FindFirst("tenant_id");
-            if (tenantIdClaim == null || string.IsNullOrEmpty(tenantIdClaim.Value.ToString()))
-            {
-                throw new UnauthorizedAccessException("无法获取租户信息");
-            }
-            return tenantIdClaim.Value.ToString();
-        }
-
-        /// <summary>
-        /// 尝试获取当前用户的租户ID
-        /// </summary>
-        /// <returns>如果成功返回租户ID，否则返回 null</returns>
-        protected long? TryGetTenantId()
-        {
-            var tenantIdClaim = User.FindFirst("tenant_id");
-            if (tenantIdClaim == null || !long.TryParse(tenantIdClaim.Value, out var tenantId))
-            {
-                return null;
-            }
-            return tenantId;
-        }
 
         /// <summary>
         /// 获取当前用户ID

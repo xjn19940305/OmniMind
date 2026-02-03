@@ -322,8 +322,6 @@ builder.Services.AddDbContext<OmniMindDbContext>(setup =>
     });
 });
 #endregion
-// 支持消息队列场景的手动租户设置
-builder.Services.AddScoped<ITenantProvider, App.AuthenticationPolicy.CompositeTenantProvider>();
 // 注册minio对象存储服务
 builder.Services.AddMinioService(builder.Configuration);
 // 注册qdrant向量数据库服务

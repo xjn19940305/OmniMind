@@ -3,12 +3,16 @@ import type { ChatMessage, ChatSession, Attachment } from '../types'
 
 /**
  * 统一聊天接口（通过 SignalR 流式响应）
- * 如果提供了 knowledgeBaseId 则使用 RAG 检索增强回答，否则直接调用模型
+ * 三种互斥模式：
+ * 1. 纯AI对话 - 不带 knowledgeBaseId 和 documentId
+ * 2. 知识库聊天 - 带 knowledgeBaseId
+ * 3. 临时文件聊天 - 带 documentId
  * 返回 messageId 和 conversationId，实际内容通过 SignalR 推送
  */
 export function chatStream(
   message: string,
   knowledgeBaseId?: string,
+  documentId?: string,
   sessionId?: string,
   topK?: number,
   model?: string,
@@ -24,6 +28,7 @@ export function chatStream(
       sessionId,
       message,
       knowledgeBaseId,
+      documentId,
       topK,
       model,
       history
@@ -32,13 +37,27 @@ export function chatStream(
 }
 
 /**
- * 上传文件（支持 sessionId）
+ * 检查文件哈希是否存在（用于文件复用）
  */
-export function uploadFile(file: File, sessionId?: string) {
+export function checkFileHash(fileHash: string) {
+  return request<Attachment | null>({
+    url: '/api/Chat/check-file-hash',
+    method: 'post',
+    data: { fileHash }
+  })
+}
+
+/**
+ * 上传文件（支持 sessionId 和 fileHash）
+ */
+export function uploadFile(file: File, sessionId?: string, fileHash?: string) {
   const formData = new FormData()
   formData.append('File', file)
   if (sessionId) {
     formData.append('SessionId', sessionId)
+  }
+  if (fileHash) {
+    formData.append('FileHash', fileHash)
   }
 
   return request<Attachment>({

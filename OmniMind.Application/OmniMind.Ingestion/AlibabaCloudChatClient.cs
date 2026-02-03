@@ -116,7 +116,7 @@ namespace OmniMind.Ingestion
 
             // 读取流式响应
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var reader = new StreamReader(stream);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
 
             while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
             {
@@ -124,11 +124,15 @@ namespace OmniMind.Ingestion
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
 
-                // SSE 格式: data: {...}
-                if (line.StartsWith("data: "))
+                // SSE 格式: data:{...} 或 data: {...}
+                // 兼容带空格和不带空格的格式
+                var data = line.TrimStart();
+                if (data.StartsWith("data:"))
                 {
-                    var data = line.Substring(6);
-                    if (data.Trim() == "[DONE]")
+                    // 移除 "data:" 或 "data: " 前缀
+                    data = data.Substring(5).TrimStart();
+
+                    if (data == "[DONE]")
                         break;
 
                     yield return ParseStreamUpdate(data);
@@ -299,7 +303,6 @@ namespace OmniMind.Ingestion
             using var jsonDoc = JsonDocument.Parse(data);
             var root = jsonDoc.RootElement;
 
-            ChatRole? role = null;
             string? content = null;
 
             if (root.TryGetProperty("choices", out var choices) &&
@@ -309,15 +312,6 @@ namespace OmniMind.Ingestion
                 var choice = choices[0];
                 if (choice.TryGetProperty("delta", out var delta))
                 {
-                    if (delta.TryGetProperty("role", out var roleElement))
-                    {
-                        var roleStr = roleElement.GetString();
-                        if (roleStr == "assistant")
-                        {
-                            role = ChatRole.Assistant;
-                        }
-                    }
-
                     if (delta.TryGetProperty("content", out var contentElement))
                     {
                         content = contentElement.GetString();
@@ -326,8 +320,33 @@ namespace OmniMind.Ingestion
             }
 
             // 创建 StreamingChatCompletionUpdate
-            // 使用默认构造函数
-            return new StreamingChatCompletionUpdate();
+            var update = CreateStreamingUpdate(content ?? string.Empty);
+
+            // 记录日志（只在有内容时）
+            if (!string.IsNullOrEmpty(content))
+            {
+                logger.LogDebug("[AlibabaCloudChat] 流式更新: {Content}", content);
+            }
+
+            return update;
+        }
+
+        /// <summary>
+        /// 创建流式更新对象（辅助方法）
+        /// </summary>
+        private static StreamingChatCompletionUpdate CreateStreamingUpdate(string content)
+        {
+            // 使用反射创建并设置属性
+            var update = new StreamingChatCompletionUpdate();
+            var textProperty = typeof(StreamingChatCompletionUpdate).GetProperty("Text");
+
+            if (textProperty != null)
+            {
+                // 总是设置 Text 属性，即使是空字符串
+                textProperty.SetValue(update, content ?? string.Empty);
+            }
+
+            return update;
         }
 
         /// <summary>

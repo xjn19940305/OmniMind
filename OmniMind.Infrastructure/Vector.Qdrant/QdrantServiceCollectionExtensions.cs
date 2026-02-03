@@ -10,7 +10,10 @@ namespace OmniMind.Vector.Qdrant
         public static IServiceCollection AddQdrantService(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<QdrantOptions>(configuration.GetSection("QdrantOptions"));
-            services.AddHttpClient<QdrantHttpVectorStore>();
+
+            // 使用命名 HttpClient 而不是类型化 HttpClient
+            services.AddHttpClient("Qdrant");
+
             services.AddScoped<IVectorStore, QdrantHttpVectorStore>();
             return services;
         }

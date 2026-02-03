@@ -13,8 +13,8 @@ namespace OmniMind.Entities
     /// 文档版本：用于索引重建、回溯、对比（企业级强烈建议）。
     /// </summary>
     [Table("document_versions")]
-    [Index(nameof(TenantId), nameof(DocumentId), nameof(Version), IsUnique = true)]
-    public class DocumentVersion : ITenantEntity
+    [Index(nameof(DocumentId), nameof(Version), IsUnique = true)]
+    public class DocumentVersion
     {
         /// <summary>
         /// 主键
@@ -22,13 +22,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-
-        /// <summary>
-        /// 租户ID（行级隔离字段）
-        /// </summary>
-        [Required]
-        [Column("tenant_id")]
-        public required string TenantId { get; set; }
 
         /// <summary>
         /// 文档ID

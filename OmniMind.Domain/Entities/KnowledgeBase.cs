@@ -16,8 +16,8 @@ namespace OmniMind.Entities
     /// 一个知识库可挂载到多个工作空间（多对多）。
     /// </summary>
     [Table("knowledge_bases")]
-    [Index(nameof(TenantId), nameof(Name))]
-    public class KnowledgeBase : ITenantEntity
+    [Index(nameof(Name))]
+    public class KnowledgeBase
     {
         /// <summary>
         /// 知识库主键
@@ -25,13 +25,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-
-        /// <summary>
-        /// 租户ID（行级隔离字段）
-        /// </summary>
-        [Required]
-        [Column("tenant_id")]
-        public required string TenantId { get; set; }
 
         /// <summary>
         /// 知识库名称
