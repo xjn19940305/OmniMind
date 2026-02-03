@@ -15,11 +15,11 @@ namespace OmniMind.Entities
     /// 无论 PDF/图片/音频/视频/网页，统一为 Document，通过 ContentType 区分。
     /// </summary>
     [Table("documents")]
-    [Index(nameof(TenantId), nameof(KnowledgeBaseId), nameof(CreatedAt))]
-    [Index(nameof(TenantId), nameof(FileHash))]
-    [Index(nameof(TenantId), nameof(SessionId))]
-    [Index(nameof(TenantId), nameof(ContentType))]
-    public class Document : ITenantEntity
+    [Index(nameof(KnowledgeBaseId), nameof(CreatedAt))]
+    [Index(nameof(FileHash))]
+    [Index(nameof(SessionId))]
+    [Index(nameof(ContentType))]
+    public class Document
     {
         /// <summary>
         /// 文档主键
@@ -27,12 +27,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-        /// <summary>
-        /// 租户ID（行级隔离字段）
-        /// </summary>
-        [Required]
-        [Column("tenant_id")]
-        public required string TenantId { get; set; }
 
         /// <summary>
         /// 所属知识库ID（可选，媒体文件/临时附件可为 NULL）

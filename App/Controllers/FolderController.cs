@@ -44,8 +44,6 @@ namespace App.Controllers
             {
                 return BadRequest(new ErrorResponse { Message = "文件夹名称长度不能超过128个字符" });
             }
-
-            var tenantId = GetTenantId();
             var currentUserId = GetUserId();
 
             // 验证知识库是否存在
@@ -85,7 +83,6 @@ namespace App.Controllers
 
             var folder = new Folder
             {
-                TenantId = tenantId,
                 KnowledgeBaseId = request.KnowledgeBaseId,
                 ParentFolderId = request.ParentFolderId,
                 Name = request.Name.Trim(),

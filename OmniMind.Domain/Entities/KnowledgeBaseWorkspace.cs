@@ -14,8 +14,8 @@ namespace OmniMind.Entities
     /// 用独立主键便于后续扩展：如挂载别名、排序、权限、标签等。
     /// </summary>
     [Table("kb_workspaces")]
-    [Index(nameof(TenantId), nameof(KnowledgeBaseId), nameof(WorkspaceId), IsUnique = true)]
-    public class KnowledgeBaseWorkspace : ITenantEntity
+    [Index(nameof(KnowledgeBaseId), nameof(WorkspaceId), IsUnique = true)]
+    public class KnowledgeBaseWorkspace
     {
         /// <summary>
         /// 关联主键
@@ -23,13 +23,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-
-        /// <summary>
-        /// 租户ID（行级隔离字段）
-        /// </summary>
-        [Required]
-        [Column("tenant_id")]
-        public required string TenantId { get; set; }
 
         /// <summary>
         /// 知识库ID

@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using OmniMind.Abstractions.Tenant;
 using OmniMind.Enums;
 using OmniMind.Persistence.MySql;
 using System;
@@ -38,31 +37,28 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
         {
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
-            var tenantProvider = scope.ServiceProvider.GetService<ITenantProvider>();
             var logger = scope.ServiceProvider.GetService<Microsoft.Extensions.Logging.ILogger<DocumentProcessingConsumer>>();
             try
             {
-
-                tenantProvider?.SetTenant(message.TenantId);
-                var document = await dbContext.Documents.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(x => x.Id == message.DocumentId && x.TenantId == message.TenantId, token);
+                var document = await dbContext.Documents
+                    .FirstOrDefaultAsync(x => x.Id == message.DocumentId, token);
                 if (document == null)
                 {
-                    logger?.LogWarning("文档不存在 DocumentId={DocumentId} TenantId={TenantId}",
-                        message.DocumentId, message.TenantId);
+                    logger?.LogWarning("文档不存在 DocumentId={DocumentId}",
+                        message.DocumentId);
                     return;
                 }
                 await DocumentProcessor.ProcessDocumentAsync(scope, document, dbContext, logger);
-                logger?.LogInformation("文档处理完成 DocumentId={DocumentId} TenantId={TenantId}",
-                    message.DocumentId, message.TenantId);
+                logger?.LogInformation("文档处理完成 DocumentId={DocumentId}",
+                    message.DocumentId);
 
             }
             catch
             {
                 try
                 {
-                    await dbContext.Documents.IgnoreQueryFilters()
-                        .Where(x => x.Id == message.DocumentId && x.TenantId == message.TenantId)
+                    await dbContext.Documents
+                        .Where(x => x.Id == message.DocumentId)
                         .ExecuteUpdateAsync(d => d
                             .SetProperty(x => x.Status, DocumentStatus.Failed)
                             .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), token);
@@ -70,10 +66,6 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
                 catch { }
 
                 throw;
-            }
-            finally
-            {
-                tenantProvider?.ClearTenant();
             }
         }
     }

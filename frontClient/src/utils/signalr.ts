@@ -108,9 +108,15 @@ export function onDocumentProgress(callback: (progress: DocumentProgress) => voi
     return
   }
 
-  connection.on('DocumentProgress', (progress: DocumentProgress) => {
-    console.log('[SignalR] 文档进度:', progress)
-    callback(progress)
+  // SignalR 会将 arguments 数组展开成独立参数传递
+  connection.on('DocumentProgress', (...args: any[]) => {
+    console.log('[SignalR] 文档进度原始参数:', args)
+
+    if (args.length >= 1) {
+      const progress = args[0] as DocumentProgress
+      console.log('[SignalR] 文档进度:', progress)
+      callback(progress)
+    }
   })
 }
 
@@ -131,9 +137,23 @@ export function onChatMessage(callback: (data: { conversationId: string; message
     return
   }
 
-  connection.on('ChatMessage', (data: { conversationId: string; message: SignalRMessage }) => {
-    console.log('[SignalR] 聊天消息:', data)
-    callback(data)
+  // SignalR 会将 arguments 数组展开成独立参数传递
+  // arguments[0] = conversationId, arguments[1] = message
+  connection.on('ChatMessage', (...args: any[]) => {
+    console.log('[SignalR] 收到原始参数:', args)
+
+    if (args.length >= 2) {
+      const data = {
+        conversationId: args[0] as string,
+        message: args[1] as SignalRMessage
+      }
+      console.log('[SignalR] 聊天消息:', data)
+      callback(data)
+    } else if (args.length === 1 && typeof args[0] === 'object') {
+      // 兼容处理：如果只有一个参数且是对象
+      console.log('[SignalR] 聊天消息:', args[0])
+      callback(args[0])
+    }
   })
 }
 

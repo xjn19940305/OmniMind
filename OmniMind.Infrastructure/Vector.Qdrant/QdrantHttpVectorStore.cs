@@ -7,28 +7,35 @@ namespace OmniMind.Vector.Qdrant
 {
     public class QdrantHttpVectorStore : IVectorStore
     {
-        private readonly HttpClient httpClient;
         private readonly QdrantOptions options;
         private readonly JsonSerializerOptions jsonOptions;
+        private readonly IHttpClientFactory httpClientFactory;
 
         public QdrantHttpVectorStore(
-            HttpClient httpClient,
+            IHttpClientFactory httpClientFactory,
             IOptions<QdrantOptions> options)
         {
-            this.httpClient = httpClient;
+            this.httpClientFactory = httpClientFactory;
             this.options = options.Value;
-
-            // 设置 BaseAddress（包含端口 6333）
-            var scheme = this.options.Https ? "https" : "http";
-            var host = this.options.Host ?? "localhost";
-            var port = this.options.Port > 0 ? this.options.Port : 6333;
-            this.httpClient.BaseAddress = new Uri($"{scheme}://{host}:{port}/");
 
             this.jsonOptions = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             };
+        }
+
+        /// <summary>
+        /// 创建配置好的 HttpClient
+        /// </summary>
+        private HttpClient CreateHttpClient()
+        {
+            var httpClient = httpClientFactory.CreateClient("Qdrant");
+            var scheme = options.Https ? "https" : "http";
+            var host = options.Host ?? "localhost";
+            var port = options.Port > 0 ? options.Port : 6333;
+            httpClient.BaseAddress = new Uri($"{scheme}://{host}:{port}/");
+            return httpClient;
         }
 
         public async Task UpsertAsync(string collection, IReadOnlyList<VectorPoint> points, CancellationToken ct = default)
@@ -50,6 +57,7 @@ namespace OmniMind.Vector.Qdrant
                 System.Text.Encoding.UTF8,
                 "application/json");
 
+            var httpClient = CreateHttpClient();
             var response = await httpClient.PutAsync(
                 $"collections/{collectionName}/points",
                 content,
@@ -88,6 +96,7 @@ namespace OmniMind.Vector.Qdrant
                 System.Text.Encoding.UTF8,
                 "application/json");
 
+            var httpClient = CreateHttpClient();
             var response = await httpClient.PostAsync(
                 $"collections/{collectionName}/points/search",
                 content,
@@ -126,6 +135,7 @@ namespace OmniMind.Vector.Qdrant
                 System.Text.Encoding.UTF8,
                 "application/json");
 
+            var httpClient = CreateHttpClient();
             var response = await httpClient.PostAsync(
                 $"collections/{collectionName}/points/delete",
                 content,
@@ -139,6 +149,7 @@ namespace OmniMind.Vector.Qdrant
             var collectionName = GetQualifiedCollectionName(collection);
 
             // 检查集合是否存在
+            var httpClient = CreateHttpClient();
             var checkResponse = await httpClient.GetAsync($"collections/{collectionName}", ct);
             if (checkResponse.IsSuccessStatusCode)
             {
@@ -206,6 +217,7 @@ namespace OmniMind.Vector.Qdrant
             var collectionName = GetQualifiedCollectionName(collection);
 
             // 先获取集合信息，检查是否有数据
+            var httpClient = CreateHttpClient();
             var infoResponse = await httpClient.GetAsync($"collections/{collectionName}", ct);
             if (!infoResponse.IsSuccessStatusCode)
             {
@@ -249,6 +261,7 @@ namespace OmniMind.Vector.Qdrant
 
         private async Task<List<string>> ListCollectionsAsync(CancellationToken ct)
         {
+            var httpClient = CreateHttpClient();
             var response = await httpClient.GetAsync("collections", ct);
             response.EnsureSuccessStatusCode();
 
@@ -260,6 +273,7 @@ namespace OmniMind.Vector.Qdrant
 
         private async Task DeleteCollectionAsync(string collectionName, CancellationToken ct)
         {
+            var httpClient = CreateHttpClient();
             var response = await httpClient.DeleteAsync($"collections/{collectionName}", ct);
             response.EnsureSuccessStatusCode();
         }

@@ -12,7 +12,7 @@ namespace OmniMind.Entities
     [Table("folders")]
     [Index(nameof(KnowledgeBaseId), nameof(ParentFolderId))]
     [Index(nameof(KnowledgeBaseId), nameof(ParentFolderId), nameof(Name), Name = "idx_folder_lookup")]
-    public class Folder : ITenantEntity
+    public class Folder
     {
         /// <summary>
         /// 文件夹主键
@@ -20,13 +20,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-
-        /// <summary>
-        /// 租户ID（行级隔离字段）
-        /// </summary>
-        [Required]
-        [Column("tenant_id")]
-        public required string TenantId { get; set; }
 
         /// <summary>
         /// 所属知识库ID

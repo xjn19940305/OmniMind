@@ -63,7 +63,6 @@ namespace App.Controllers
                 return BadRequest(new ErrorResponse { Message = "文件大小不能超过 100MB" });
             }
 
-            var tenantId = GetTenantId();
             var currentUserId = GetUserId();
 
             // 验证知识库是否存在
@@ -88,7 +87,7 @@ namespace App.Controllers
             // 生成文档ID和对象Key
             var documentId = Guid.CreateVersion7().ToString();
             var fileName = file.FileName;
-            var objectKey = MinioObjectStorage.GenerateTenantObjectKey(tenantId, documentId, fileName);
+            var objectKey = MinioObjectStorage.GenerateTenantObjectKey(GetUserId(), documentId, fileName);
 
             // 准备元数据（原始文件名等）
             var metadata = new Dictionary<string, string>
@@ -123,7 +122,6 @@ namespace App.Controllers
             var document = new Document
             {
                 Id = documentId,
-                TenantId = tenantId,
                 KnowledgeBaseId = knowledgeBaseId,
                 FolderId = folderId,
                 WorkspaceId = await GetUserFirstWorkspaceId(),
@@ -148,7 +146,6 @@ namespace App.Controllers
                 var uploadMessage = new DocumentUploadMessage
                 {
                     DocumentId = document.Id,
-                    TenantId = tenantId,
                     KnowledgeBaseId = knowledgeBaseId,
                     ObjectKey = objectKey,
                     FileName = fileName,
@@ -156,8 +153,8 @@ namespace App.Controllers
                 };
 
                 await messagePublisher.PublishDocumentUploadAsync(uploadMessage);
-                logger.LogInformation("已发布文档上传消息: DocumentId={DocumentId}, TenantId={TenantId}",
-                    document.Id, tenantId);
+                logger.LogInformation("已发布文档上传消息: DocumentId={DocumentId}, userId={userId}",
+                    document.Id, GetUserId());
             }
             catch (Exception ex)
             {
@@ -186,8 +183,6 @@ namespace App.Controllers
             {
                 return BadRequest(new ErrorResponse { Message = "文档标题长度不能超过256个字符" });
             }
-
-            var tenantId = GetTenantId();
             var currentUserId = GetUserId();
 
             // 验证知识库是否存在
@@ -216,13 +211,12 @@ namespace App.Controllers
             if (request.SourceType == SourceType.Url && !string.IsNullOrEmpty(request.SourceUri))
             {
                 // TODO: 实现从 URL 下载并上传到 MinIO
-                objectKey = MinioObjectStorage.GenerateTenantObjectKey(tenantId, documentId, "imported.txt");
+                objectKey = MinioObjectStorage.GenerateTenantObjectKey(GetUserId(), documentId, "imported.txt");
             }
 
             var document = new Document
             {
                 Id = documentId,
-                TenantId = tenantId,
                 KnowledgeBaseId = request.KnowledgeBaseId,
                 FolderId = request.FolderId,
                 WorkspaceId = await GetUserFirstWorkspaceId(),

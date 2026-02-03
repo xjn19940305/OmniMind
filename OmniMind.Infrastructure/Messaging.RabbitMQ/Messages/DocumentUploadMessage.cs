@@ -11,11 +11,6 @@ namespace OmniMind.Messages
         public string DocumentId { get; init; } = string.Empty;
 
         /// <summary>
-        /// 租户ID
-        /// </summary>
-        public string TenantId { get; init; } = string.Empty;
-
-        /// <summary>
         /// 知识库ID
         /// </summary>
         public string KnowledgeBaseId { get; init; } = string.Empty;

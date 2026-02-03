@@ -14,8 +14,8 @@ namespace OmniMind.Entities
     /// 工作空间成员：用于 Workspace 级 RBAC（Owner/Admin/Member/Viewer）
     /// </summary>
     [Table("workspace_members")]
-    [Index(nameof(TenantId), nameof(WorkspaceId), nameof(UserId), IsUnique = true)]
-    public class WorkspaceMember : ITenantEntity
+    [Index(nameof(WorkspaceId), nameof(UserId), IsUnique = true)]
+    public class WorkspaceMember
     {
         /// <summary>
         /// 主键
@@ -23,13 +23,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-
-        /// <summary>
-        /// 租户ID（行级隔离字段）
-        /// </summary>
-        [Required]
-        [Column("tenant_id")]
-        public string TenantId { get; set; }
 
         /// <summary>
         /// 工作空间ID

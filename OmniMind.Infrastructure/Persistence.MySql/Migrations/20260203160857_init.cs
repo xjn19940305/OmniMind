@@ -45,8 +45,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                 {
                     id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    tenant_id = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
                     name = table.Column<string>(type: "varchar(128)", maxLength: 128, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     description = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: true)
@@ -83,8 +81,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     UsedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
                     DeviceInfo = table.Column<string>(type: "longtext", nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    TenantId = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>
@@ -120,8 +116,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                 columns: table => new
                 {
                     id = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    tenant_id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     name = table.Column<string>(type: "varchar(128)", maxLength: 128, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -167,8 +161,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                 columns: table => new
                 {
                     id = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    tenant_id = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     knowledge_base_id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -276,8 +268,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                 {
                     id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    tenant_id = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
                     knowledge_base_id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     workspace_id = table.Column<string>(type: "varchar(255)", nullable: false)
@@ -311,8 +301,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                 {
                     id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    tenant_id = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
                     workspace_id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     user_id = table.Column<string>(type: "varchar(64)", maxLength: 64, nullable: false)
@@ -338,17 +326,16 @@ namespace OmniMind.Persistence.MySql.Migrations
                 {
                     id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    tenant_id = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    knowledge_base_id = table.Column<string>(type: "varchar(255)", nullable: false)
+                    knowledge_base_id = table.Column<string>(type: "varchar(255)", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     folder_id = table.Column<string>(type: "varchar(255)", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    workspace_id = table.Column<string>(type: "varchar(255)", nullable: false)
+                    workspace_id = table.Column<string>(type: "varchar(255)", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     title = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    content_type = table.Column<int>(type: "int", nullable: false),
+                    content_type = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     source_type = table.Column<int>(type: "int", nullable: false),
                     source_uri = table.Column<string>(type: "varchar(512)", maxLength: 512, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -360,6 +347,11 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     status = table.Column<int>(type: "int", nullable: false),
                     error = table.Column<string>(type: "varchar(512)", maxLength: 512, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    duration = table.Column<int>(type: "int", nullable: true),
+                    transcription = table.Column<string>(type: "longtext", nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    session_id = table.Column<string>(type: "varchar(64)", maxLength: 64, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     created_by_user_id = table.Column<string>(type: "varchar(64)", maxLength: 64, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -378,14 +370,12 @@ namespace OmniMind.Persistence.MySql.Migrations
                         name: "FK_documents_knowledge_bases_knowledge_base_id",
                         column: x => x.knowledge_base_id,
                         principalTable: "knowledge_bases",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "id");
                     table.ForeignKey(
                         name: "FK_documents_workspaces_workspace_id",
                         column: x => x.workspace_id,
                         principalTable: "workspaces",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "id");
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
@@ -501,8 +491,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                 {
                     id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    tenant_id = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
                     document_id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     version = table.Column<int>(type: "int", nullable: false),
@@ -543,8 +531,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                 {
                     id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    tenant_id = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
                     document_id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     version = table.Column<int>(type: "int", nullable: false),
@@ -571,8 +557,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                 columns: table => new
                 {
                     id = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    tenant_id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     workspace_id = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -648,9 +632,10 @@ namespace OmniMind.Persistence.MySql.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_chunks_document_id",
+                name: "IX_chunks_document_id_version_chunk_index",
                 table: "chunks",
-                column: "document_id");
+                columns: new[] { "document_id", "version", "chunk_index" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_chunks_parent_chunk_id",
@@ -658,21 +643,20 @@ namespace OmniMind.Persistence.MySql.Migrations
                 column: "parent_chunk_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_chunks_tenant_id_document_id_version_chunk_index",
-                table: "chunks",
-                columns: new[] { "tenant_id", "document_id", "version", "chunk_index" },
+                name: "IX_document_versions_document_id_version",
+                table: "document_versions",
+                columns: new[] { "document_id", "version" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_document_versions_document_id",
-                table: "document_versions",
-                column: "document_id");
+                name: "IX_documents_content_type",
+                table: "documents",
+                column: "content_type");
 
             migrationBuilder.CreateIndex(
-                name: "IX_document_versions_tenant_id_document_id_version",
-                table: "document_versions",
-                columns: new[] { "tenant_id", "document_id", "version" },
-                unique: true);
+                name: "IX_documents_file_hash",
+                table: "documents",
+                column: "file_hash");
 
             migrationBuilder.CreateIndex(
                 name: "IX_documents_folder_id",
@@ -680,19 +664,14 @@ namespace OmniMind.Persistence.MySql.Migrations
                 column: "folder_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_documents_knowledge_base_id",
+                name: "IX_documents_knowledge_base_id_created_at",
                 table: "documents",
-                column: "knowledge_base_id");
+                columns: new[] { "knowledge_base_id", "created_at" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_documents_tenant_id_file_hash",
+                name: "IX_documents_session_id",
                 table: "documents",
-                columns: new[] { "tenant_id", "file_hash" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_documents_tenant_id_knowledge_base_id_created_at",
-                table: "documents",
-                columns: new[] { "tenant_id", "knowledge_base_id", "created_at" });
+                column: "session_id");
 
             migrationBuilder.CreateIndex(
                 name: "IX_documents_workspace_id",
@@ -715,29 +694,19 @@ namespace OmniMind.Persistence.MySql.Migrations
                 column: "parent_folder_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ingestion_tasks_document_id",
+                name: "IX_ingestion_tasks_document_id_status",
                 table: "ingestion_tasks",
-                column: "document_id");
+                columns: new[] { "document_id", "status" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_ingestion_tasks_tenant_id_document_id_status",
+                name: "IX_ingestion_tasks_workspace_id_knowledge_base_id_created_at",
                 table: "ingestion_tasks",
-                columns: new[] { "tenant_id", "document_id", "status" });
+                columns: new[] { "workspace_id", "knowledge_base_id", "created_at" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_ingestion_tasks_tenant_id_workspace_id_knowledge_base_id_cre~",
-                table: "ingestion_tasks",
-                columns: new[] { "tenant_id", "workspace_id", "knowledge_base_id", "created_at" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_kb_workspaces_knowledge_base_id",
+                name: "IX_kb_workspaces_knowledge_base_id_workspace_id",
                 table: "kb_workspaces",
-                column: "knowledge_base_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_kb_workspaces_tenant_id_knowledge_base_id_workspace_id",
-                table: "kb_workspaces",
-                columns: new[] { "tenant_id", "knowledge_base_id", "workspace_id" },
+                columns: new[] { "knowledge_base_id", "workspace_id" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -746,25 +715,20 @@ namespace OmniMind.Persistence.MySql.Migrations
                 column: "workspace_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_knowledge_bases_tenant_id_name",
+                name: "IX_knowledge_bases_name",
                 table: "knowledge_bases",
-                columns: new[] { "tenant_id", "name" });
+                column: "name");
 
             migrationBuilder.CreateIndex(
-                name: "IX_workspace_members_tenant_id_workspace_id_user_id",
+                name: "IX_workspace_members_workspace_id_user_id",
                 table: "workspace_members",
-                columns: new[] { "tenant_id", "workspace_id", "user_id" },
+                columns: new[] { "workspace_id", "user_id" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_workspace_members_workspace_id",
-                table: "workspace_members",
-                column: "workspace_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_workspaces_tenant_id_name",
+                name: "IX_workspaces_name",
                 table: "workspaces",
-                columns: new[] { "tenant_id", "name" });
+                column: "name");
         }
 
         /// <inheritdoc />

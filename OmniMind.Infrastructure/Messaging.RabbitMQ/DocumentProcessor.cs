@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.AI;
 using OmniMind.Abstractions.Ingestion;
+using OmniMind.Abstractions.SignalR;
 using OmniMind.Abstractions.Storage;
 using OmniMind.Entities;
 using OmniMind.Enums;
@@ -36,6 +37,7 @@ namespace OmniMind.Messaging.RabbitMQ
                 // 获取解析器和切片器
                 var fileParser = scope.ServiceProvider.GetService<IFileParser>();
                 var chunker = scope.ServiceProvider.GetService<IChunker>();
+                var realtimeNotifier = scope.ServiceProvider.GetService<IRealtimeNotifier>();
 
                 if (fileParser == null)
                 {
@@ -46,12 +48,28 @@ namespace OmniMind.Messaging.RabbitMQ
                     throw new InvalidOperationException("IChunker 服务未注册");
                 }
 
-                // 1. 更新状态为"解析中"
-                await dbContext.Documents.IgnoreQueryFilters()
-                    .Where(x => x.Id == document.Id && x.TenantId == document.TenantId)
+                // 1. 更新状态为"解析中"并发送通知
+                await dbContext.Documents
+                    .Where(x => x.Id == document.Id)
                     .ExecuteUpdateAsync(d => d
                         .SetProperty(x => x.Status, DocumentStatus.Parsing)
                         .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow));
+
+                // 发送解析中通知
+                if (realtimeNotifier != null)
+                {
+                    await realtimeNotifier.NotifyDocumentProgressAsync(
+                        document.CreatedByUserId,
+                        document.Id,
+                        new DocumentProgress
+                        {
+                            DocumentId = document.Id,
+                            Title = document.Title,
+                            Status = "Parsing",
+                            Progress = 20,
+                            Stage = "正在解析文档内容..."
+                        });
+                }
 
                 // 2. 从MinIO下载文件
                 logger?.LogInformation("[文档处理] 正在下载文件: {DocumentId}", document.Id);
@@ -74,19 +92,35 @@ namespace OmniMind.Messaging.RabbitMQ
 
                 logger?.LogInformation("[文档处理] 解析完成，文本长度: {TextLength} 字符", extractedText.Length);
 
-                // 更新状态为"已解析"
-                await dbContext.Documents.IgnoreQueryFilters()
-                    .Where(x => x.Id == document.Id && x.TenantId == document.TenantId)
+                // 更新状态为"已解析"并发送通知
+                await dbContext.Documents
+                    .Where(x => x.Id == document.Id)
                     .ExecuteUpdateAsync(d => d
                         .SetProperty(x => x.Status, DocumentStatus.Parsed)
                         .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow));
+
+                // 发送已解析通知
+                if (realtimeNotifier != null)
+                {
+                    await realtimeNotifier.NotifyDocumentProgressAsync(
+                        document.CreatedByUserId,
+                        document.Id,
+                        new DocumentProgress
+                        {
+                            DocumentId = document.Id,
+                            Title = document.Title,
+                            Status = "Parsed",
+                            Progress = 50,
+                            Stage = "文档已解析，正在建立索引..."
+                        });
+                }
 
                 // 4. 文本切片
                 logger?.LogInformation("[文档处理] 正在切片文档: {DocumentId}", document.Id);
 
                 // 清除旧的切片（如果存在）
-                var existingChunks = await dbContext.Chunks.IgnoreQueryFilters()
-                    .Where(c => c.DocumentId == document.Id && c.TenantId == document.TenantId)
+                var existingChunks = await dbContext.Chunks
+                    .Where(c => c.DocumentId == document.Id)
                     .ToListAsync();
                 if (existingChunks.Any())
                 {
@@ -112,7 +146,6 @@ namespace OmniMind.Messaging.RabbitMQ
                     var chunks = textChunks.Select(tc => new Chunk
                     {
                         Id = Guid.CreateVersion7().ToString(),
-                        TenantId = document.TenantId,
                         DocumentId = document.Id,
                         Version = 1,
                         ChunkIndex = tc.Index,
@@ -136,6 +169,22 @@ namespace OmniMind.Messaging.RabbitMQ
                 // 5. 向量化
                 logger?.LogInformation("[文档处理] 正在向量化文档: {DocumentId}", document.Id);
 
+                // 发送索引中通知
+                if (realtimeNotifier != null)
+                {
+                    await realtimeNotifier.NotifyDocumentProgressAsync(
+                        document.CreatedByUserId,
+                        document.Id,
+                        new DocumentProgress
+                        {
+                            DocumentId = document.Id,
+                            Title = document.Title,
+                            Status = "Indexing",
+                            Progress = 70,
+                            Stage = "正在建立向量索引..."
+                        });
+                }
+
                 var embeddingGenerator = scope.ServiceProvider.GetService<IEmbeddingGenerator<string, Embedding<float>>>();
                 if (embeddingGenerator == null)
                 {
@@ -143,8 +192,8 @@ namespace OmniMind.Messaging.RabbitMQ
                 }
 
                 // 重新加载切片（包含新插入的切片）
-                var allChunks = await dbContext.Chunks.IgnoreQueryFilters()
-                    .Where(c => c.DocumentId == document.Id && c.TenantId == document.TenantId)
+                var allChunks = await dbContext.Chunks
+                    .Where(c => c.DocumentId == document.Id)
                     .OrderBy(c => c.ChunkIndex)
                     .ToListAsync();
 
@@ -169,7 +218,15 @@ namespace OmniMind.Messaging.RabbitMQ
 
                     // 获取向量维度（从第一个 embedding 获取）
                     var vectorSize = embeddings.FirstOrDefault()?.Vector.Length ?? 1024;
-                    var documentCollectionName = $"{document?.KnowledgeBaseId ?? string.Empty}";
+
+                    // 确定集合名称：临时文件使用固定 collection，知识库文件使用 KnowledgeBaseId
+                    var documentCollectionName = string.IsNullOrEmpty(document?.KnowledgeBaseId)
+                        ? string.Empty  // 临时文件，使用固定的 documents_kb_ collection（通过 document_id 过滤器区分）
+                        : document.KnowledgeBaseId;  // 知识库文件，使用知识库ID
+
+                    logger?.LogInformation("[文档处理] 使用集合: {CollectionName}, DocumentId={DocumentId}",
+                        string.IsNullOrEmpty(documentCollectionName) ? "documents_kb_" : documentCollectionName, document.Id);
+
                     // 确保集合存在
                     await vectorStore.EnsureCollectionAsync(
                         documentCollectionName,
@@ -189,7 +246,6 @@ namespace OmniMind.Messaging.RabbitMQ
                         // 构建元数据
                         var payload = new Dictionary<string, object>
                         {
-                            { "tenant_id", chunk.TenantId },
                             { "document_id", chunk.DocumentId },
                             { "chunk_index", chunk.ChunkIndex },
                             { "content", chunk.Content }
@@ -216,12 +272,29 @@ namespace OmniMind.Messaging.RabbitMQ
                         document.Id, vectorPoints.Count);
                 }
 
-                // 7. 更新状态为"已完成"
-                await dbContext.Documents.IgnoreQueryFilters()
-                    .Where(x => x.Id == document.Id && x.TenantId == document.TenantId)
+                // 7. 更新状态为"已完成"并发送通知
+                await dbContext.Documents
+                    .Where(x => x.Id == document.Id)
                     .ExecuteUpdateAsync(d => d
                         .SetProperty(x => x.Status, DocumentStatus.Indexed)
                         .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow));
+
+                // 发送完成通知
+                if (realtimeNotifier != null)
+                {
+                    await realtimeNotifier.NotifyDocumentProgressAsync(
+                        document.CreatedByUserId,
+                        document.Id,
+                        new DocumentProgress
+                        {
+                            DocumentId = document.Id,
+                            Title = document.Title,
+                            Status = "Indexed",
+                            Progress = 100,
+                            Stage = "处理完成！"
+                        });
+                }
+
                 stopwatch.Stop();
                 logger?.LogInformation("[文档处理] 处理完成: DocumentId={DocumentId}, 耗时={ElapsedMs}ms",
                     document.Id, stopwatch.ElapsedMilliseconds);
@@ -230,14 +303,32 @@ namespace OmniMind.Messaging.RabbitMQ
             {
                 stopwatch.Stop();
                 // 更新状态为"失败"
-                await dbContext.Documents.IgnoreQueryFilters()
-                    .Where(x => x.Id == document.Id && x.TenantId == document.TenantId)
+                await dbContext.Documents
+                    .Where(x => x.Id == document.Id)
                     .ExecuteUpdateAsync(d => d
                         .SetProperty(x => x.Status, DocumentStatus.Failed)
                         .SetProperty(x => x.Error, ex.Message.Length > 512
                             ? ex.Message.Substring(0, 512)
                             : ex.Message)
                         .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow));
+
+                // 发送失败通知
+                var realtimeNotifier = scope.ServiceProvider.GetService<IRealtimeNotifier>();
+                if (realtimeNotifier != null)
+                {
+                    await realtimeNotifier.NotifyDocumentProgressAsync(
+                        document.CreatedByUserId,
+                        document.Id,
+                        new DocumentProgress
+                        {
+                            DocumentId = document.Id,
+                            Title = document.Title,
+                            Status = "Failed",
+                            Progress = 0,
+                            Stage = "处理失败",
+                            Error = ex.Message
+                        });
+                }
 
                 logger?.LogError(ex, "[文档处理] 处理失败: DocumentId={DocumentId}, 耗时={ElapsedMs}ms",
                     document.Id, stopwatch.ElapsedMilliseconds);

@@ -46,12 +46,10 @@ namespace App.Controllers
                 return BadRequest(new ErrorResponse { Message = "工作空间名称长度不能超过128个字符" });
             }
 
-            var tenantId = GetTenantId();
             var userId = GetUserId();
 
             var workspace = new Workspace
             {
-                TenantId = tenantId,
                 Name = request.Name.Trim(),
                 Type = request.Type,
                 OwnerUserId = userId,
@@ -63,7 +61,6 @@ namespace App.Controllers
             // 创建者自动成为 Owner
             var ownerMember = new WorkspaceMember
             {
-                TenantId = tenantId,
                 WorkspaceId = workspace.Id,
                 UserId = userId,
                 Role = WorkspaceRole.Owner,
@@ -235,7 +232,6 @@ namespace App.Controllers
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AddMember(string id, [FromBody] AddMemberRequest request)
         {
-            var tenantId = GetTenantId();
 
             var workspace = await dbContext.Workspaces.FindAsync(id);
             if (workspace == null)
@@ -260,7 +256,6 @@ namespace App.Controllers
 
             var member = new WorkspaceMember
             {
-                TenantId = tenantId,
                 WorkspaceId = id,
                 UserId = request.UserId,
                 Role = request.Role,

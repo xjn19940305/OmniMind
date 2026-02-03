@@ -13,8 +13,8 @@ namespace OmniMind.Entities
     /// 切片：统一可检索单元（文本/图片OCR/音频分段/视频转写+关键帧描述等）。
     /// </summary>
     [Table("chunks")]
-    [Index(nameof(TenantId), nameof(DocumentId), nameof(Version), nameof(ChunkIndex), IsUnique = true)]
-    public class Chunk : ITenantEntity
+    [Index(nameof(DocumentId), nameof(Version), nameof(ChunkIndex), IsUnique = true)]
+    public class Chunk
     {
         /// <summary>
         /// 主键
@@ -22,13 +22,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-
-        /// <summary>
-        /// 租户ID（行级隔离字段）
-        /// </summary>
-        [Required]
-        [Column("tenant_id")]
-        public required string TenantId { get; set; }
 
         /// <summary>
         /// 文档ID

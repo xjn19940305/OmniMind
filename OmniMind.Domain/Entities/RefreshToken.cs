@@ -5,7 +5,7 @@ namespace OmniMind.Entities
     /// <summary>
     /// 刷新令牌
     /// </summary>
-    public class RefreshToken : ITenantEntity
+    public class RefreshToken
     {
         /// <summary>
         /// 主键ID
@@ -66,9 +66,5 @@ namespace OmniMind.Entities
         /// 设备信息/客户端IP
         /// </summary>
         public string? DeviceInfo { get; set; }
-        public required string TenantId
-        {
-            get; set;
-        }
     }
 }

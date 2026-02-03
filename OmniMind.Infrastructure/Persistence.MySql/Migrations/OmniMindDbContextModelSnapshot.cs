@@ -62,11 +62,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .HasColumnType("int")
                         .HasColumnName("start_ms");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("tenant_id");
-
                     b.Property<int?>("TokenCount")
                         .HasColumnType("int")
                         .HasColumnName("token_count");
@@ -82,11 +77,9 @@ namespace OmniMind.Persistence.MySql.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DocumentId");
-
                     b.HasIndex("ParentChunkId");
 
-                    b.HasIndex("TenantId", "DocumentId", "Version", "ChunkIndex")
+                    b.HasIndex("DocumentId", "Version", "ChunkIndex")
                         .IsUnique();
 
                     b.ToTable("chunks");
@@ -163,11 +156,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .HasColumnType("int")
                         .HasColumnName("status");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("tenant_id");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("longtext")
@@ -187,19 +175,17 @@ namespace OmniMind.Persistence.MySql.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ContentType");
+
+                    b.HasIndex("FileHash");
+
                     b.HasIndex("FolderId");
 
-                    b.HasIndex("KnowledgeBaseId");
+                    b.HasIndex("SessionId");
 
                     b.HasIndex("WorkspaceId");
 
-                    b.HasIndex("TenantId", "ContentType");
-
-                    b.HasIndex("TenantId", "FileHash");
-
-                    b.HasIndex("TenantId", "SessionId");
-
-                    b.HasIndex("TenantId", "KnowledgeBaseId", "CreatedAt");
+                    b.HasIndex("KnowledgeBaseId", "CreatedAt");
 
                     b.ToTable("documents");
                 });
@@ -229,20 +215,13 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .HasColumnType("longtext")
                         .HasColumnName("object_key");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("tenant_id");
-
                     b.Property<int>("Version")
                         .HasColumnType("int")
                         .HasColumnName("version");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DocumentId");
-
-                    b.HasIndex("TenantId", "DocumentId", "Version")
+                    b.HasIndex("DocumentId", "Version")
                         .IsUnique();
 
                     b.ToTable("document_versions");
@@ -288,11 +267,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("int")
                         .HasColumnName("sort_order");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("longtext")
-                        .HasColumnName("tenant_id");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetime(6)")
@@ -346,11 +320,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .HasColumnType("int")
                         .HasColumnName("status");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("tenant_id");
-
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("updated_at");
@@ -362,11 +331,9 @@ namespace OmniMind.Persistence.MySql.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DocumentId");
+                    b.HasIndex("DocumentId", "Status");
 
-                    b.HasIndex("TenantId", "DocumentId", "Status");
-
-                    b.HasIndex("TenantId", "WorkspaceId", "KnowledgeBaseId", "CreatedAt");
+                    b.HasIndex("WorkspaceId", "KnowledgeBaseId", "CreatedAt");
 
                     b.ToTable("ingestion_tasks");
                 });
@@ -396,11 +363,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .HasColumnType("varchar(128)")
                         .HasColumnName("name");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("tenant_id");
-
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("updated_at");
@@ -411,7 +373,7 @@ namespace OmniMind.Persistence.MySql.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "Name");
+                    b.HasIndex("Name");
 
                     b.ToTable("knowledge_bases");
                 });
@@ -440,11 +402,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .HasColumnType("int")
                         .HasColumnName("sort_order");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("tenant_id");
-
                     b.Property<string>("WorkspaceId")
                         .IsRequired()
                         .HasColumnType("varchar(255)")
@@ -452,11 +409,9 @@ namespace OmniMind.Persistence.MySql.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("KnowledgeBaseId");
-
                     b.HasIndex("WorkspaceId");
 
-                    b.HasIndex("TenantId", "KnowledgeBaseId", "WorkspaceId")
+                    b.HasIndex("KnowledgeBaseId", "WorkspaceId")
                         .IsUnique();
 
                     b.ToTable("kb_workspaces");
@@ -491,10 +446,6 @@ namespace OmniMind.Persistence.MySql.Migrations
 
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("datetime(6)");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("longtext");
 
                     b.Property<string>("Token")
                         .IsRequired()
@@ -844,11 +795,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .HasColumnType("varchar(64)")
                         .HasColumnName("owner_user_id");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("tenant_id");
-
                     b.Property<int>("Type")
                         .HasColumnType("int")
                         .HasColumnName("type");
@@ -859,7 +805,7 @@ namespace OmniMind.Persistence.MySql.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "Name");
+                    b.HasIndex("Name");
 
                     b.ToTable("workspaces");
                 });
@@ -878,11 +824,6 @@ namespace OmniMind.Persistence.MySql.Migrations
                         .HasColumnType("int")
                         .HasColumnName("role");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("tenant_id");
-
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -896,9 +837,7 @@ namespace OmniMind.Persistence.MySql.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("WorkspaceId");
-
-                    b.HasIndex("TenantId", "WorkspaceId", "UserId")
+                    b.HasIndex("WorkspaceId", "UserId")
                         .IsUnique();
 
                     b.ToTable("workspace_members");
