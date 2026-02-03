@@ -70,7 +70,7 @@ namespace OmniMind.Ingestion
             logger.LogDebug("[AlibabaCloudEmbedding] 正在向量化 {Count} 个文本", texts.Count);
 
             // DashScope API 单次最多支持 25 个文本
-            const int batchSize = 25;
+            const int batchSize = 5;
             var allEmbeddings = new List<Embedding<float>>();
 
             for (int i = 0; i < texts.Count; i += batchSize)

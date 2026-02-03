@@ -1,82 +1,59 @@
 import request from '../utils/request'
 import type { ChatMessage, ChatSession, Attachment } from '../types'
 
-export function sendMessage(sessionId: string, content: string, files?: Attachment[]) {
+/**
+ * 统一聊天接口（通过 SignalR 流式响应）
+ * 如果提供了 knowledgeBaseId 则使用 RAG 检索增强回答，否则直接调用模型
+ * 返回 messageId 和 conversationId，实际内容通过 SignalR 推送
+ */
+export function chatStream(
+  message: string,
+  knowledgeBaseId?: string,
+  sessionId?: string,
+  topK?: number,
+  model?: string,
+  history?: ChatMessage[]
+) {
   return request<{
     messageId: string
-    content: string
-    sessionId: string
+    conversationId: string
   }>({
-    url: '/chat/message',
+    url: '/api/Chat/chatStream',
     method: 'post',
-    data: { sessionId, content, files }
+    data: {
+      sessionId,
+      message,
+      knowledgeBaseId,
+      topK,
+      model,
+      history
+    }
   })
 }
 
-export function sendMessageStream(
-  sessionId: string,
-  content: string,
-  onMessage: (message: string) => void,
-  onComplete: () => void,
-  onError: (error: Error) => void,
-  files?: Attachment[]
-) {
-  const token = localStorage.getItem('token')
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+/**
+ * 上传文件（支持 sessionId）
+ */
+export function uploadFile(file: File, sessionId?: string) {
+  const formData = new FormData()
+  formData.append('File', file)
+  if (sessionId) {
+    formData.append('SessionId', sessionId)
+  }
 
-  return fetch(`${baseUrl}/chat/stream`, {
-    method: 'POST',
+  return request<Attachment>({
+    url: '/api/Chat/upload',
+    method: 'post',
+    data: formData,
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ sessionId, content, files })
-  }).then(async (response) => {
-    if (!response.ok) {
-      throw new Error('Network response was not ok')
-    }
-
-    const reader = response.body?.getReader()
-    const decoder = new TextDecoder()
-
-    if (!reader) {
-      throw new Error('Response body is null')
-    }
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-
-        if (done) {
-          onComplete()
-          break
-        }
-
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') {
-              onComplete()
-              return
-            }
-            try {
-              const parsed = JSON.parse(data)
-              onMessage(parsed.content || '')
-            } catch (e) {
-              // Ignore parsing errors for incomplete chunks
-            }
-          }
-        }
-      }
-    } catch (error) {
-      onError(error as Error)
+      'Content-Type': 'multipart/form-data'
     }
   })
 }
 
+/**
+ * 获取会话列表
+ */
 export function getSessions() {
   return request<ChatSession[]>({
     url: '/chat/sessions',
@@ -84,6 +61,9 @@ export function getSessions() {
   })
 }
 
+/**
+ * 创建会话
+ */
 export function createSession(title?: string) {
   return request<ChatSession>({
     url: '/chat/sessions',
@@ -92,6 +72,9 @@ export function createSession(title?: string) {
   })
 }
 
+/**
+ * 删除会话
+ */
 export function deleteSession(sessionId: string) {
   return request({
     url: `/chat/sessions/${sessionId}`,
@@ -99,23 +82,12 @@ export function deleteSession(sessionId: string) {
   })
 }
 
+/**
+ * 获取会话消息
+ */
 export function getSessionMessages(sessionId: string) {
   return request<ChatMessage[]>({
     url: `/chat/sessions/${sessionId}/messages`,
     method: 'get'
-  })
-}
-
-export function uploadFile(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-
-  return request<Attachment>({
-    url: '/chat/upload',
-    method: 'post',
-    data: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
   })
 }

@@ -11,4 +11,8 @@
 		<ProjectReference Include="..\Enums\OmniMind.Enums.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
 </Project>

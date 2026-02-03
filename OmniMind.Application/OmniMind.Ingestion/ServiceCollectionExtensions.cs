@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using System.Linq;
 using OmniMind.Abstractions.Ingestion;
 using OmniMind.Ingestion;
 
@@ -63,6 +64,51 @@ namespace OmniMind.Ingestion
             {
                 var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<LocalEmbeddingGenerator>>();
                 return new LocalEmbeddingGenerator(options, logger);
+            });
+            return services;
+        }
+
+        /// <summary>
+        /// 添加阿里云百练聊天服务
+        /// </summary>
+        public static IServiceCollection AddAlibabaCloudChatClient(this IServiceCollection services, IConfiguration configuration)
+        {
+            var alibabaCloudSection = configuration.GetSection("AlibabaCloud");
+            var chatSection = alibabaCloudSection.GetSection("Chat");
+
+            var options = new AlibabaCloudChatOptions();
+
+            // ApiKey 从外层 AlibabaCloud 读取
+            options.ApiKey = alibabaCloudSection["ApiKey"] ?? string.Empty;
+
+            // Endpoint 优先使用 Chat 下的，否则使用外层的
+            options.Endpoint = chatSection["Endpoint"] ?? alibabaCloudSection["Endpoint"];
+
+            // Model 是数组，取第一个作为默认模型，同时保存所有模型
+            var modelSection = chatSection.GetSection("Model");
+            var models = modelSection.GetChildren().Select(x => x.Value).ToArray();
+            options.Models = models;
+            options.Model = models?.FirstOrDefault() ?? "qwen-max";
+
+            // 读取可选参数
+            if (int.TryParse(chatSection["MaxTokens"], out int maxTokens))
+            {
+                options.MaxTokens = maxTokens;
+            }
+            if (float.TryParse(chatSection["Temperature"], out float temperature))
+            {
+                options.Temperature = temperature;
+            }
+            if (float.TryParse(chatSection["TopP"], out float topP))
+            {
+                options.TopP = topP;
+            }
+
+            services.AddSingleton<global::Microsoft.Extensions.AI.IChatClient>(sp =>
+            {
+                var httpClient = new System.Net.Http.HttpClient();
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AlibabaCloudChatClient>>();
+                return new AlibabaCloudChatClient(httpClient, options, logger);
             });
             return services;
         }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OmniMind.Persistence.MySql;
 
@@ -11,9 +12,11 @@ using OmniMind.Persistence.MySql;
 namespace OmniMind.Persistence.MySql.Migrations
 {
     [DbContext(typeof(OmniMindDbContext))]
-    partial class OmniMindDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260203091233_addfield")]
+    partial class addfield
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

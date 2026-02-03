@@ -18,6 +18,7 @@
 	<ItemGroup>
 	  <ProjectReference Include="..\Persistence.MySql\OmniMind.Persistence.MySql.csproj" />
 	  <ProjectReference Include="..\..\OmniMind.Application\OmniMind.Ingestion\OmniMind.Ingestion.csproj" />
+	  <ProjectReference Include="..\..\OmniMind.Shared\Abstractions\OmniMind.Abstractions.csproj" />
 	</ItemGroup>
 
 </Project>

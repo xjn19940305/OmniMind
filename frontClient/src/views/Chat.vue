@@ -17,7 +17,10 @@
           @click="handleSelectSession(session.id)"
         >
           <div class="session-title">{{ session.title }}</div>
-          <el-icon class="delete-icon" @click.stop="handleDeleteSession(session.id)">
+          <el-icon
+            class="delete-icon"
+            @click.stop="handleDeleteSession(session.id)"
+          >
             <Delete />
           </el-icon>
         </div>
@@ -36,16 +39,57 @@
         </el-button>
       </div>
 
+      <!-- Knowledge Base Selector -->
+      <div class="kb-selector">
+        <el-select
+          v-model="selectedKnowledgeBase"
+          placeholder="选择知识库（可选）"
+          clearable
+          filterable
+          style="width: 100%"
+          @change="handleKnowledgeBaseChange"
+        >
+          <el-option
+            v-for="kb in knowledgeBases"
+            :key="kb.id"
+            :label="kb.name"
+            :value="kb.id"
+          >
+            <span>{{ kb.name }}</span>
+            <span style="float: right; color: #8492a6; font-size: 12px">
+              {{ kb.documentCount || 0 }} 文档
+            </span>
+          </el-option>
+        </el-select>
+        <el-tag
+          v-if="selectedKnowledgeBase"
+          type="success"
+          size="small"
+          style="margin-left: 8px"
+        >
+          已启用知识库检索
+        </el-tag>
+      </div>
+
+      <!-- Connection Status -->
+      <div v-if="!isSignalRConnected" class="connection-status">
+        <el-icon><Warning /></el-icon>
+        <span>实时连接断开，正在重连...</span>
+      </div>
+
       <!-- Messages -->
       <div class="messages-container" ref="messagesContainer">
         <div v-if="currentMessages.length === 0" class="empty-state">
           <el-icon size="80" color="#909399"><ChatDotRound /></el-icon>
-          <p>开始新的对话</p>
+          <p>{{ selectedKnowledgeBase ? "基于知识库提问" : "开始新的对话" }}</p>
+          <p v-if="selectedKnowledgeBase" class="hint">
+            已选择知识库：{{ getKnowledgeBaseName(selectedKnowledgeBase) }}
+          </p>
         </div>
 
         <div v-else class="messages">
           <div
-            v-for="(message, index) in currentMessages"
+            v-for="message in currentMessages"
             :key="message.id"
             class="message"
             :class="message.role"
@@ -59,7 +103,10 @@
               </el-avatar>
             </div>
             <div class="message-content">
-              <div v-if="message.files && message.files.length > 0" class="message-files">
+              <div
+                v-if="message.files && message.files.length > 0"
+                class="message-files"
+              >
                 <el-tag
                   v-for="file in message.files"
                   :key="file.id"
@@ -70,8 +117,13 @@
                   {{ file.name }}
                 </el-tag>
               </div>
-              <div class="message-text" v-html="renderMessage(message.content)"></div>
-              <div class="message-time">{{ formatTime(message.timestamp) }}</div>
+              <div
+                class="message-text"
+                v-html="renderMessage(message.content)"
+              ></div>
+              <div class="message-time">
+                {{ formatTime(message.timestamp) }}
+              </div>
             </div>
           </div>
 
@@ -112,7 +164,9 @@
             v-model="inputMessage"
             type="textarea"
             :autosize="{ minRows: 1, maxRows: 6 }"
-            placeholder="输入消息，支持上传文档、图片等..."
+            :placeholder="
+              selectedKnowledgeBase ? '基于知识库回答问题...' : '输入消息...'
+            "
             @keydown.enter.prevent="handleEnter"
           />
           <div class="input-actions">
@@ -144,11 +198,20 @@
     </div>
 
     <!-- Mobile Sessions Drawer -->
-    <el-drawer v-model="showMobileSessions" direction="ltr" size="70%" class="mobile-only">
+    <el-drawer
+      v-model="showMobileSessions"
+      direction="ltr"
+      size="70%"
+      class="mobile-only"
+    >
       <template #header>
         <span>对话历史</span>
       </template>
-      <el-button type="primary" style="width: 100%; margin-bottom: 16px;" @click="handleNewChat">
+      <el-button
+        type="primary"
+        style="width: 100%; margin-bottom: 16px"
+        @click="handleNewChat"
+      >
         <el-icon><Plus /></el-icon>
         新对话
       </el-button>
@@ -158,10 +221,16 @@
           :key="session.id"
           class="session-item"
           :class="{ active: session.id === currentSessionId }"
-          @click="handleSelectSession(session.id); showMobileSessions = false"
+          @click="
+            handleSelectSession(session.id);
+            showMobileSessions = false;
+          "
         >
           <div class="session-title">{{ session.title }}</div>
-          <el-icon class="delete-icon" @click.stop="handleDeleteSession(session.id)">
+          <el-icon
+            class="delete-icon"
+            @click.stop="handleDeleteSession(session.id)"
+          >
             <Delete />
           </el-icon>
         </div>
@@ -171,10 +240,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import type { UploadFile, UploadInstance, UploadUserFile } from 'element-plus'
-import { marked } from 'marked'
+import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ElMessage } from "element-plus";
+import type { UploadFile, UploadInstance } from "element-plus";
+import { marked } from "marked";
 import {
   Menu,
   Plus,
@@ -183,169 +252,311 @@ import {
   Document,
   Delete,
   ChatDotRound,
-  Promotion
-} from '@element-plus/icons-vue'
-import { useChatStore } from '../stores/chat'
-import { sendMessageStream, uploadFile, createSession } from '../api/chat'
-import type { Attachment } from '../types'
+  Promotion,
+  Warning,
+} from "@element-plus/icons-vue";
+import { useChatStore } from "../stores/chat";
+import { useUserStore } from "../stores/user";
+import { chatStream, uploadFile, createSession } from "../api/chat";
+import { getKnowledgeBases } from "../api/knowledge";
+import {
+  initSignalR,
+  stopSignalR,
+  onChatMessage,
+  isConnected,
+  type SignalRMessage,
+} from "../utils/signalr";
+import type { Attachment, ChatMessage as ApiChatMessage } from "../types";
 
-const chatStore = useChatStore()
+const chatStore = useChatStore();
+const userStore = useUserStore();
 
-const inputMessage = ref('')
-const messagesContainer = ref<HTMLElement>()
-const uploadRef = ref<UploadInstance>()
-const selectedFiles = ref<Attachment[]>([])
-const showMobileSessions = ref(false)
+const inputMessage = ref("");
+const messagesContainer = ref<HTMLElement>();
+const uploadRef = ref<UploadInstance>();
+const selectedFiles = ref<Attachment[]>([]);
+const showMobileSessions = ref(false);
+const isSignalRConnected = ref(false);
+const selectedKnowledgeBase = ref<string>("");
+const knowledgeBases = ref<any[]>([]);
 
-const sessions = computed(() => chatStore.sessions)
-const currentSessionId = computed(() => chatStore.currentSessionId)
-const currentMessages = computed(() => chatStore.currentSession?.messages || [])
-const isStreaming = computed(() => chatStore.isStreaming)
+const sessions = computed(() => chatStore.sessions);
+const currentSessionId = computed(() => chatStore.currentSessionId);
+const currentMessages = computed(
+  () => chatStore.currentSession?.messages || [],
+);
+const isStreaming = computed(() => chatStore.isStreaming);
+
+// 获取知识库名称
+function getKnowledgeBaseName(id: string) {
+  const kb = knowledgeBases.value.find((k) => k.id === id);
+  return kb?.name || "未知知识库";
+}
+
+// 加载知识库列表
+async function loadKnowledgeBases() {
+  try {
+    const data = await getKnowledgeBases({ pageSize: 100 });
+    knowledgeBases.value = data?.items || [];
+  } catch (error) {
+    console.error("加载知识库失败:", error);
+  }
+}
+
+// 知识库变化时记录日志
+function handleKnowledgeBaseChange(value: string | undefined) {
+  if (value) {
+    console.log("[Chat] 已选择知识库:", getKnowledgeBaseName(value));
+    ElMessage.info(`已切换到知识库：${getKnowledgeBaseName(value)}`);
+  } else {
+    console.log("[Chat] 已取消知识库，使用默认聊天");
+  }
+}
+
+// 构建对话历史
+function buildHistory(): ApiChatMessage[] {
+  return currentMessages.value
+    .filter((m) => m.role !== "system")
+    .map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+}
 
 function formatTime(timestamp: string) {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
 
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
-  return date.toLocaleDateString()
+  if (diff < 60000) return "刚刚";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+  return date.toLocaleDateString();
 }
 
 function renderMessage(content: string) {
-  return marked(content)
+  return marked(content);
 }
 
 function scrollToBottom() {
   nextTick(() => {
     if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
     }
-  })
+  });
 }
 
 async function handleNewChat() {
-  await createSession()
-  chatStore.createSession()
-  scrollToBottom()
+  await createSession();
+  chatStore.createSession();
+  selectedKnowledgeBase.value = "";
+  scrollToBottom();
 }
 
 function handleSelectSession(sessionId: string) {
-  chatStore.currentSessionId = sessionId
-  scrollToBottom()
+  chatStore.currentSessionId = sessionId;
+  scrollToBottom();
 }
 
 async function handleDeleteSession(sessionId: string) {
-  chatStore.deleteSession(sessionId)
-  ElMessage.success('已删除对话')
+  chatStore.deleteSession(sessionId);
+  ElMessage.success("已删除对话");
 }
 
 async function handleFileChange(file: UploadFile) {
-  if (!file.raw) return
+  if (!file.raw) return;
 
   try {
-    const uploaded = await uploadFile(file.raw)
-    selectedFiles.value.push(uploaded)
-    ElMessage.success(`已添加 ${file.name}`)
+    const uploaded = await uploadFile(file.raw, currentSessionId.value);
+    selectedFiles.value.push(uploaded);
+    ElMessage.success(`已添加 ${file.name}`);
   } catch (error) {
-    ElMessage.error('文件上传失败')
+    ElMessage.error("文件上传失败");
   }
 }
 
 function handleRemoveFile(fileId: string) {
-  const index = selectedFiles.value.findIndex(f => f.id === fileId)
+  const index = selectedFiles.value.findIndex((f) => f.id === fileId);
   if (index > -1) {
-    selectedFiles.value.splice(index, 1)
+    selectedFiles.value.splice(index, 1);
   }
 }
 
 function handlePreviewFile(file: Attachment) {
-  // TODO: Implement file preview
-  ElMessage.info('文件预览功能开发中')
+  ElMessage.info("文件预览功能开发中");
 }
 
 function handleEnter(event: KeyboardEvent) {
   if (!event.shiftKey) {
-    handleSend()
+    handleSend();
   }
 }
 
 async function handleSend() {
-  if (!inputMessage.value.trim() && selectedFiles.value.length === 0) return
-  if (isStreaming.value) return
+  if (!inputMessage.value.trim() && selectedFiles.value.length === 0) return;
+  if (isStreaming.value) return;
 
-  // Create session if needed
-  let sessionId = currentSessionId.value
-  if (!sessionId) {
-    const newSession = await createSession()
-    chatStore.createSession(newSession.title)
-    sessionId = newSession.id
-  }
+  // 创建会话
+  // let sessionId = currentSessionId.value;
+  // if (!sessionId) {
+  //   const newSession = await createSession();
+  // chatStore.createSession(newSession.title);
+  //   sessionId = newSession.id;
+  // }
+  let sessionId = "1";
+  const content = inputMessage.value.trim();
+  const files = [...selectedFiles.value];
 
-  const content = inputMessage.value.trim()
-  const files = [...selectedFiles.value]
-
-  // Add user message
+  // 添加用户消息
   chatStore.addMessage(sessionId, {
     id: Date.now().toString(),
-    role: 'user',
+    role: "user",
     content,
     timestamp: new Date().toISOString(),
-    files
-  })
+    files,
+  });
 
-  // Clear input
-  inputMessage.value = ''
-  selectedFiles.value = []
+  // 清空输入
+  inputMessage.value = "";
+  selectedFiles.value = [];
 
-  // Add assistant message placeholder
-  const assistantMessageId = `${Date.now()}_assistant`
+  // 添加助手消息占位
+  const assistantMessageId = `${Date.now()}_assistant`;
   chatStore.addMessage(sessionId, {
     id: assistantMessageId,
-    role: 'assistant',
-    content: '',
-    timestamp: new Date().toISOString()
-  })
+    role: "assistant",
+    content: "",
+    timestamp: new Date().toISOString(),
+  });
 
-  const messageIndex = chatStore.currentSession?.messages.length - 1 || 0
+  const messageIndex = chatStore.currentSession?.messages.length - 1 || 0;
 
-  // Stream response
-  chatStore.isStreaming = true
-  scrollToBottom()
+  // 设置流式状态
+  chatStore.isStreaming = true;
+  scrollToBottom();
 
   try {
-    let fullResponse = ''
+    const history = buildHistory();
 
-    await sendMessageStream(
-      sessionId,
+    // 调用统一聊天接口
+    const response = await chatStream(
       content,
-      files,
-      (chunk) => {
-        fullResponse += chunk
-        chatStore.updateMessage(sessionId, messageIndex, fullResponse)
-        scrollToBottom()
-      },
-      () => {
-        chatStore.isStreaming = false
-      },
-      (error) => {
-        chatStore.isStreaming = false
-        ElMessage.error('发送失败')
-        console.error('Stream error:', error)
-      }
-    )
-  } catch (error) {
-    chatStore.isStreaming = false
-    ElMessage.error('发送失败')
-    console.error('Send error:', error)
+      selectedKnowledgeBase.value, // 知识库ID（可选）
+      sessionId,
+      undefined, // topK 使用默认值
+      "deepseek-v3.2", // model 使用默认值
+      history,
+    );
+
+    // 存储消息映射
+    pendingMessages.set(response.messageId, {
+      sessionId,
+      messageIndex,
+      localMessageId: assistantMessageId,
+    });
+
+    console.log(
+      "[Chat] 消息已发送:",
+      response.messageId,
+      selectedKnowledgeBase.value ? "(使用知识库)" : "(默认聊天)",
+    );
+  } catch (error: any) {
+    chatStore.isStreaming = false;
+    ElMessage.error(error.response?.data?.message || "发送失败");
+    console.error("发送失败:", error);
   }
 }
 
-onMounted(() => {
-  // Load sessions if needed
-  scrollToBottom()
-})
+// SignalR 消息处理
+const pendingMessages = new Map<
+  string,
+  {
+    sessionId: string;
+    messageIndex: number;
+    localMessageId: string;
+  }
+>();
+
+function handleSignalRChatMessage(data: {
+  conversationId: string;
+  message: SignalRMessage;
+}) {
+  const { conversationId, message } = data;
+
+  const pending = pendingMessages.get(message.messageId);
+  if (pending) {
+    chatStore.updateMessage(
+      pending.sessionId,
+      pending.messageIndex,
+      message.content,
+    );
+    scrollToBottom();
+
+    if (message.isComplete) {
+      chatStore.isStreaming = false;
+      pendingMessages.delete(message.messageId);
+      ElMessage.success("完成");
+    }
+  } else {
+    chatStore.isStreaming = !message.isComplete;
+
+    const existingMessage = currentMessages.value.find(
+      (m) => m.id === message.messageId,
+    );
+    if (existingMessage) {
+      existingMessage.content = message.content;
+    } else {
+      chatStore.addMessage(conversationId, {
+        id: message.messageId,
+        role: message.role as "user" | "assistant",
+        content: message.content,
+        timestamp: message.timestamp,
+      });
+    }
+    scrollToBottom();
+  }
+}
+
+// 初始化 SignalR
+async function initializeSignalR() {
+  try {
+    const userId = userStore.userInfo?.id || userStore.tenantId;
+    if (!userId) {
+      console.warn("[Chat] 没有 user ID，无法连接 SignalR");
+      return;
+    }
+
+    await initSignalR(userId);
+    isSignalRConnected.value = true;
+    onChatMessage(handleSignalRChatMessage);
+
+    console.log("[Chat] SignalR 连接成功");
+  } catch (error) {
+    console.error("[Chat] SignalR 连接失败:", error);
+    isSignalRConnected.value = false;
+  }
+}
+
+onMounted(async () => {
+  // 加载知识库列表
+  await loadKnowledgeBases();
+
+  // 初始化 SignalR
+  await initializeSignalR();
+
+  // 定期检查连接状态
+  const checkInterval = setInterval(() => {
+    isSignalRConnected.value = isConnected();
+  }, 5000);
+
+  onUnmounted(() => {
+    clearInterval(checkInterval);
+  });
+});
+
+onUnmounted(() => {
+  stopSignalR();
+});
 </script>
 
 <style scoped lang="scss">
@@ -357,7 +568,25 @@ onMounted(() => {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
-// Sidebar
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #fef0f0;
+  color: #f56c6c;
+  font-size: 12px;
+  border-bottom: 1px solid #fde2e2;
+}
+
+.kb-selector {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e4e7ed;
+  gap: 8px;
+}
+
 .chat-sidebar {
   width: 260px;
   border-right: 1px solid #e4e7ed;
@@ -422,7 +651,6 @@ onMounted(() => {
   }
 }
 
-// Main
 .chat-main {
   flex: 1;
   display: flex;
@@ -459,6 +687,12 @@ onMounted(() => {
   p {
     margin-top: 16px;
     font-size: 14px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: #a8abb2;
+    margin-top: 8px;
   }
 }
 
@@ -536,7 +770,7 @@ onMounted(() => {
       background: #f5f7fa;
       padding: 2px 6px;
       border-radius: 4px;
-      font-family: 'Courier New', monospace;
+      font-family: "Courier New", monospace;
     }
   }
 
@@ -570,7 +804,9 @@ onMounted(() => {
 }
 
 @keyframes typing {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     transform: translateY(0);
   }
   30% {
