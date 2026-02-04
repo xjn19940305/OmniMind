@@ -150,6 +150,15 @@
               </el-button>
             </el-upload>
             <el-button
+              text
+              :disabled="!canGenerateSummary"
+              :loading="isGeneratingSummary"
+              @click="handleGenerateSummary"
+            >
+              <el-icon><Document /></el-icon>
+              生成总结
+            </el-button>
+            <el-button
               type="primary"
               :loading="isStreaming"
               :disabled="!canSendMessage"
@@ -183,7 +192,7 @@ import {
 } from "@element-plus/icons-vue";
 import { useChatStore } from "../stores/chat";
 import { useUserStore } from "../stores/user";
-import { chatStream, uploadFile, createSession, checkFileHash } from "../api/chat";
+import { chatStream, uploadFile, createSession, checkFileHash, generateSummary } from "../api/chat";
 import { getKnowledgeBases } from "../api/knowledge";
 import {
   initSignalR,
@@ -208,6 +217,7 @@ const showMobileSessions = ref(false);
 const isSignalRConnected = ref(false);
 const selectedKnowledgeBase = ref<string>("");
 const knowledgeBases = ref<any[]>([]);
+const isGeneratingSummary = ref(false);
 
 const sessions = computed(() => chatStore.sessions);
 const currentSessionId = computed(() => chatStore.currentSessionId);
@@ -232,6 +242,12 @@ const canSendMessage = computed(() => {
   });
 
   return result;
+});
+
+// 是否可以生成总结：必须有且只有一个已就绪的文件，且没有正在进行的操作
+const canGenerateSummary = computed(() => {
+  const hasOneReadyFile = selectedFiles.value.length === 1 && selectedFiles.value[0].status === 5;
+  return hasOneReadyFile && !isStreaming.value && !isGeneratingSummary.value;
 });
 
 // 获取文件状态文本
@@ -354,9 +370,9 @@ function formatTime(timestamp: string) {
 }
 
 function renderMessage(content: string) {
-  // 移除多余的空行（连续超过1个空行的情况）
+  // 移除多余的空行，保留一个空行作为段落分隔
   const cleanedContent = content
-    .replace(/\n{3,}/g, '\n\n') // 3个或以上连续换行替换为2个
+    .replace(/\n{3,}/g, '\n\n') // 3个或以上连续换行替换为2个（保留1个空行）
     .replace(/^\n+/, '') // 移除开头的空行
     .replace(/\n+$/, ''); // 移除结尾的空行
 
@@ -442,6 +458,75 @@ function handleRemoveFile(fileId: string) {
 
 function handlePreviewFile(file: Attachment) {
   ElMessage.info("文件预览功能开发中");
+}
+
+// 生成文档总结
+async function handleGenerateSummary() {
+  if (!canGenerateSummary.value) return;
+  if (selectedFiles.value.length === 0) {
+    ElMessage.warning("请先上传文件");
+    return;
+  }
+
+  const documentId = selectedFiles.value[0].id;
+
+  // 获取或创建会话
+  let sessionId = currentSessionId.value;
+  if (!sessionId) {
+    const newSession = chatStore.createSession();
+    sessionId = newSession.id;
+    console.log("[Chat] 创建新会话:", sessionId);
+  }
+
+  try {
+    isGeneratingSummary.value = true;
+
+    // 添加用户消息
+    chatStore.addMessage(sessionId, {
+      id: Date.now().toString(),
+      role: "user",
+      content: `请为文档《${selectedFiles.value[0].name}》生成总结`,
+      timestamp: new Date().toISOString(),
+      files: [...selectedFiles.value],
+    });
+
+    // 清空输入
+    inputMessage.value = "";
+    selectedFiles.value = [];
+
+    // 添加助手消息占位
+    const assistantMessageId = `${Date.now()}_assistant`;
+    chatStore.addMessage(sessionId, {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date().toISOString(),
+    });
+
+    const currentSession = sessions.value.find(s => s.id === sessionId);
+    const messageIndex = currentSession?.messages.length - 1 || 0;
+
+    // 设置流式状态
+    chatStore.isStreaming = true;
+    scrollToBottom();
+
+    // 调用生成总结 API
+    const response = await generateSummary(documentId, sessionId);
+
+    // 存储消息映射
+    pendingMessages.set(response.messageId, {
+      sessionId,
+      messageIndex,
+      localMessageId: assistantMessageId,
+    });
+
+    console.log("[Chat] 总结生成请求已发送:", response.messageId);
+  } catch (error: any) {
+    isGeneratingSummary.value = false;
+    chatStore.isStreaming = false;
+    ElMessage.error(error.response?.data?.message || "生成总结失败");
+    console.error("生成总结失败:", error);
+  }
 }
 
 function handleEnter(event: KeyboardEvent) {
@@ -595,6 +680,7 @@ function handleSignalRChatMessage(data: {
     if (message.isComplete) {
       console.log("[Chat] 消息完成，清理 pending");
       chatStore.isStreaming = false;
+      isGeneratingSummary.value = false; // 重置生成总结状态
       pendingMessages.delete(message.messageId);
       ElMessage.success("完成");
     }

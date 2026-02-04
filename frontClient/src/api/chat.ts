@@ -2,6 +2,20 @@ import request from '../utils/request'
 import type { ChatMessage, ChatSession, Attachment } from '../types'
 
 /**
+ * 生成文档总结（流式输出）
+ */
+export function generateSummary(documentId: string, sessionId?: string) {
+  return request<{
+    messageId: string
+    conversationId: string
+  }>({
+    url: '/api/Test/generate-summary',
+    method: 'post',
+    data: { documentId, sessionId }
+  })
+}
+
+/**
  * 统一聊天接口（通过 SignalR 流式响应）
  * 三种互斥模式：
  * 1. 纯AI对话 - 不带 knowledgeBaseId 和 documentId

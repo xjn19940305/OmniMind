@@ -14,60 +14,6 @@ namespace OmniMind.Ingestion
     /// </summary>
     public static class ServiceCollectionExtensions
     {
-        /// <summary>
-        /// 创建阿里云百练聊天客户端（工厂方法，无需 DI 容器）
-        /// </summary>
-        public static IChatClient CreateAlibabaCloudClient(
-            string apiKey,
-            string? model = null,
-            string? endpoint = null,
-            bool useProxy = true)
-        {
-            var options = new AlibabaCloudChatOptions
-            {
-                ApiKey = apiKey,
-                Model = model ?? "qwen-max",
-                Endpoint = endpoint
-            };
-
-            var handler = new System.Net.Http.SocketsHttpHandler
-            {
-                // 禁用自动解压，避免缓冲
-                AutomaticDecompression = System.Net.DecompressionMethods.None,
-                // 代理设置
-                UseProxy = useProxy,
-                // 连接保持/复用
-                PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-                // keep-alive 配置
-                KeepAlivePingDelay = TimeSpan.FromSeconds(30),
-                KeepAlivePingTimeout = TimeSpan.FromSeconds(10),
-                EnableMultipleHttp2Connections = false,
-            };
-
-            var httpClient = new System.Net.Http.HttpClient(handler, disposeHandler: true)
-            {
-                BaseAddress = new Uri(options.Endpoint ?? "https://dashscope.aliyuncs.com"),
-                Timeout = Timeout.InfiniteTimeSpan,
-                // SSE 使用 HTTP/1.1 更稳定
-                DefaultRequestVersion = System.Net.HttpVersion.Version11,
-                DefaultVersionPolicy = System.Net.Http.HttpVersionPolicy.RequestVersionOrLower,
-            };
-
-            httpClient.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", options.ApiKey);
-
-            // 设置 SSE 相关请求头
-            httpClient.DefaultRequestHeaders.Accept.Clear();
-            httpClient.DefaultRequestHeaders.Accept.ParseAdd("text/event-stream");
-            httpClient.DefaultRequestHeaders.CacheControl =
-                new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
-
-            var loggerFactory = NullLoggerFactory.Instance;
-            var logger = loggerFactory.CreateLogger<AlibabaCloudChatClient>();
-
-            return new AlibabaCloudChatClient(httpClient, options, logger);
-        }
 
         /// <summary>
         /// 添加 Ingestion 服务
@@ -169,6 +115,60 @@ namespace OmniMind.Ingestion
                 return CreateAlibabaCloudClient(options.ApiKey, options.Model, options.Endpoint);
             });
             return services;
+        }
+        /// <summary>
+        /// 创建阿里云百练聊天客户端（工厂方法，无需 DI 容器）
+        /// </summary>
+        public static IChatClient CreateAlibabaCloudClient(
+            string apiKey,
+            string? model = null,
+            string? endpoint = null,
+            bool useProxy = true)
+        {
+            var options = new AlibabaCloudChatOptions
+            {
+                ApiKey = apiKey,
+                Model = model ?? "qwen-max",
+                Endpoint = endpoint
+            };
+
+            var handler = new System.Net.Http.SocketsHttpHandler
+            {
+                // 禁用自动解压，避免缓冲
+                AutomaticDecompression = System.Net.DecompressionMethods.None,
+                // 代理设置
+                UseProxy = useProxy,
+                // 连接保持/复用
+                PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+                // keep-alive 配置
+                KeepAlivePingDelay = TimeSpan.FromSeconds(30),
+                KeepAlivePingTimeout = TimeSpan.FromSeconds(10),
+                EnableMultipleHttp2Connections = false,
+            };
+
+            var httpClient = new System.Net.Http.HttpClient(handler, disposeHandler: true)
+            {
+                BaseAddress = new Uri(options.Endpoint ?? "https://dashscope.aliyuncs.com"),
+                Timeout = Timeout.InfiniteTimeSpan,
+                // SSE 使用 HTTP/1.1 更稳定
+                DefaultRequestVersion = System.Net.HttpVersion.Version11,
+                DefaultVersionPolicy = System.Net.Http.HttpVersionPolicy.RequestVersionOrLower,
+            };
+
+            httpClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", options.ApiKey);
+
+            // 设置 SSE 相关请求头
+            httpClient.DefaultRequestHeaders.Accept.Clear();
+            httpClient.DefaultRequestHeaders.Accept.ParseAdd("text/event-stream");
+            httpClient.DefaultRequestHeaders.CacheControl =
+                new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
+
+            var loggerFactory = NullLoggerFactory.Instance;
+            var logger = loggerFactory.CreateLogger<AlibabaCloudChatClient>();
+
+            return new AlibabaCloudChatClient(httpClient, options, logger);
         }
     }
 }
