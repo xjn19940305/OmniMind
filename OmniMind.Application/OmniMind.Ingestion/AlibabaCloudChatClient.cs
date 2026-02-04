@@ -1,6 +1,8 @@
+using DocumentFormat.OpenXml.Vml.Wordprocessing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -26,19 +28,10 @@ namespace OmniMind.Ingestion
             this.httpClient = httpClient;
             this.options = options;
             this.logger = logger;
-
-            // 设置 DashScope API 地址
-            this.httpClient.BaseAddress = new Uri(this.options.Endpoint ?? "https://dashscope.aliyuncs.com");
-
             // 使用配置的模型
             var modelId = this.options.Model ?? "qwen-max";
-
             // 创建元数据
             Metadata = new ChatClientMetadata(modelId);
-
-            // 设置默认请求头
-            this.httpClient.DefaultRequestHeaders.Remove("Authorization");
-            this.httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {this.options.ApiKey}");
         }
 
         /// <summary>
@@ -100,10 +93,17 @@ namespace OmniMind.Ingestion
                 Encoding.UTF8,
                 "application/json");
 
-            // 发送请求
-            using var response = await httpClient.PostAsync(
-                "/compatible-mode/v1/chat/completions",
-                jsonContent,
+            // 发送请求（使用 ResponseHeadersRead 确保流式读取，避免缓冲整个响应）
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/compatible-mode/v1/chat/completions");
+            // 建议显式声明 SSE
+            request.Headers.Accept.ParseAdd("text/event-stream");
+            request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
+
+            request.Content = jsonContent;
+
+            using var response = await httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -115,25 +115,48 @@ namespace OmniMind.Ingestion
             }
 
             // 读取流式响应
-            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var reader = new StreamReader(stream, Encoding.UTF8);
+
+            var sb = new StringBuilder();
+            var buffer = new char[1024];
 
             while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
             {
-                var line = await reader.ReadLineAsync(cancellationToken);
-                if (string.IsNullOrWhiteSpace(line))
-                    continue;
+                var read = await reader.ReadAsync(buffer, 0, buffer.Length);
+                if (read <= 0) continue;
 
-                // SSE 格式: data:{...} 或 data: {...}
-                // 兼容带空格和不带空格的格式
-                var data = line.TrimStart();
-                if (data.StartsWith("data:"))
+                sb.Append(buffer, 0, read);
+
+                while (true)
                 {
-                    // 移除 "data:" 或 "data: " 前缀
-                    data = data.Substring(5).TrimStart();
+                    var text = sb.ToString();
 
-                    if (data == "[DONE]")
-                        break;
+                    // SSE 事件分隔：空行
+                    var idx = text.IndexOf("\n\n", StringComparison.Ordinal);
+                    var idx2 = text.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+
+                    int cut;
+                    if (idx >= 0 && idx2 >= 0) cut = Math.Min(idx, idx2);
+                    else cut = Math.Max(idx, idx2);
+
+                    if (cut < 0) break;
+
+                    var rawEvent = text.Substring(0, cut);
+                    var removeLen = (idx2 >= 0 && idx2 == cut) ? 4 : 2;
+                    sb.Remove(0, cut + removeLen);
+
+                    // 合并 event 内所有 data: 行
+                    var dataLines = rawEvent
+                        .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(l => l.TrimStart())
+                        .Where(l => l.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                        .Select(l => l.Substring(5).TrimStart());
+
+                    var data = string.Join("\n", dataLines);
+                    if (string.IsNullOrWhiteSpace(data)) continue;
+
+                    if (data == "[DONE]") yield break;
 
                     yield return ParseStreamUpdate(data);
                 }
@@ -303,52 +326,47 @@ namespace OmniMind.Ingestion
             using var jsonDoc = JsonDocument.Parse(data);
             var root = jsonDoc.RootElement;
 
-            string? content = null;
+            string content = string.Empty;
 
             if (root.TryGetProperty("choices", out var choices) &&
                 choices.ValueKind == JsonValueKind.Array &&
                 choices.GetArrayLength() > 0)
             {
                 var choice = choices[0];
-                if (choice.TryGetProperty("delta", out var delta))
+
+                // 常见：delta.content
+                if (choice.TryGetProperty("delta", out var delta) &&
+                    delta.ValueKind == JsonValueKind.Object &&
+                    delta.TryGetProperty("content", out var ce) &&
+                    ce.ValueKind == JsonValueKind.String)
                 {
-                    if (delta.TryGetProperty("content", out var contentElement))
-                    {
-                        content = contentElement.GetString();
-                    }
+                    content = ce.GetString() ?? string.Empty;
+                }
+                // 兜底：message.content（少数实现/最后一段）
+                else if (choice.TryGetProperty("message", out var msg) &&
+                         msg.ValueKind == JsonValueKind.Object &&
+                         msg.TryGetProperty("content", out var me) &&
+                         me.ValueKind == JsonValueKind.String)
+                {
+                    content = me.GetString() ?? string.Empty;
                 }
             }
 
-            // 创建 StreamingChatCompletionUpdate
-            var update = CreateStreamingUpdate(content ?? string.Empty);
-
-            // 记录日志（只在有内容时）
-            if (!string.IsNullOrEmpty(content))
-            {
-                logger.LogDebug("[AlibabaCloudChat] 流式更新: {Content}", content);
-            }
-
-            return update;
+            return CreateStreamingUpdate(content);
         }
 
+
+        private static readonly System.Reflection.PropertyInfo? TextProp =
+    typeof(StreamingChatCompletionUpdate).GetProperty("Text");
         /// <summary>
         /// 创建流式更新对象（辅助方法）
         /// </summary>
         private static StreamingChatCompletionUpdate CreateStreamingUpdate(string content)
         {
-            // 使用反射创建并设置属性
             var update = new StreamingChatCompletionUpdate();
-            var textProperty = typeof(StreamingChatCompletionUpdate).GetProperty("Text");
-
-            if (textProperty != null)
-            {
-                // 总是设置 Text 属性，即使是空字符串
-                textProperty.SetValue(update, content ?? string.Empty);
-            }
-
+            TextProp?.SetValue(update, content ?? string.Empty);
             return update;
         }
-
         /// <summary>
         /// 获取 JSON 序列化选项
         /// </summary>

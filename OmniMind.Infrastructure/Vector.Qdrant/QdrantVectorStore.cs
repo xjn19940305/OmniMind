@@ -170,30 +170,6 @@ namespace OmniMind.Vector.Qdrant
             }
         }
 
-        public async Task DeleteTenantCollectionsAsync(string tenantId, CancellationToken ct = default)
-        {
-            var collections = await client.ListCollectionsAsync(cancellationToken: ct);
-            var prefix = $"tenant-{tenantId}_";
-
-            foreach (var col in collections)
-            {
-                if (col.StartsWith(prefix))
-                {
-                    await client.DeleteCollectionAsync(col, cancellationToken: ct);
-                }
-            }
-        }
-
-        public async Task<IReadOnlyList<string>> ListTenantCollectionsAsync(string tenantId, CancellationToken ct = default)
-        {
-            var collections = await client.ListCollectionsAsync(cancellationToken: ct);
-            var prefix = $"tenant-{tenantId}_";
-
-            return collections
-                .Where(c => c.StartsWith(prefix))
-                .Select(c => c.Substring(prefix.Length))
-                .ToList();
-        }
 
         public async Task ClearCollectionAsync(string collection, CancellationToken ct = default)
         {
