@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadInstance } from 'element-plus'
 import {
@@ -117,7 +117,16 @@ import {
   Headset
 } from '@element-plus/icons-vue'
 import { getDocuments, moveDocument, deleteDocument } from '../api/document'
+import { useUserStore } from '../stores/user'
+import {
+  initSignalR,
+  onDocumentProgress,
+  isConnected,
+  type DocumentProgress,
+} from '../utils/signalr'
 import type { Document as DocType } from '../types'
+
+const userStore = useUserStore()
 
 interface Props {
   knowledgeBaseId: string
@@ -376,6 +385,80 @@ function getStatusLabel(status: number): string {
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
+
+// 处理文档进度更新
+function handleDocumentProgress(progress: DocumentProgress) {
+  console.log('[DocumentList] 收到文档进度:', progress)
+  console.log('[DocumentList] 当前文档列表:', documents.value)
+
+  const docIndex = documents.value.findIndex(d => d.id === progress.documentId)
+  if (docIndex === -1) {
+    console.warn('[DocumentList] 找不到文档:', progress.documentId)
+    return
+  }
+
+  // 更新文档状态 - 使用新数组确保响应式更新
+  const statusMap: Record<string, number> = {
+    'Uploaded': 1,
+    'Parsing': 2,
+    'Parsed': 3,
+    'Indexing': 4,
+    'Indexed': 5,
+    'Failed': 6
+  }
+
+  const newStatus = statusMap[progress.status] || 1
+  console.log(`[DocumentList] 更新文档状态: ${documents.value[docIndex].title} ${documents.value[docIndex].status} -> ${newStatus}`)
+
+  // 创建新数组以确保响应式更新
+  documents.value = documents.value.map((doc, i) =>
+    i === docIndex ? { ...doc, status: newStatus } : doc
+  )
+
+  // 如果文档已完成
+  if (progress.status === 'Indexed') {
+    ElMessage.success(`文档 ${progress.title} 已完成处理`)
+  }
+  // 如果文档处理失败
+  else if (progress.status === 'Failed') {
+    ElMessage.error(`文档 ${progress.title} 处理失败：${progress.error || '未知错误'}`)
+  }
+
+  console.log('[DocumentList] 更新后的文档列表:', documents.value)
+}
+
+// 初始化 SignalR
+async function initializeSignalR() {
+  try {
+    const userId = userStore.userInfo?.id || userStore.tenantId
+    if (!userId) {
+      console.warn('[DocumentList] 没有 user ID，无法连接 SignalR')
+      return
+    }
+
+    // 如果已经连接，直接监听即可
+    if (!isConnected()) {
+      await initSignalR(userId)
+    }
+
+    onDocumentProgress(handleDocumentProgress)
+    console.log('[DocumentList] SignalR 文档进度监听已设置')
+  } catch (error) {
+    console.error('[DocumentList] SignalR 初始化失败:', error)
+  }
+}
+
+// 组件挂载时初始化 SignalR
+onMounted(async () => {
+  await initializeSignalR()
+})
+
+// 组件卸载时清理监听器
+onUnmounted(() => {
+  // 注意：这里不调用 stopSignalR，因为连接是全局共享的
+  // 只需要移除监听器即可
+  console.log('[DocumentList] 组件卸载')
+})
 
 // 监听 folderId 变化
 watch(() => props.folderId, () => {
