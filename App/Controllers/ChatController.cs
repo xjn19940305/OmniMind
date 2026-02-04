@@ -323,12 +323,15 @@ namespace App.Controllers
                     if (!string.IsNullOrEmpty(update.Text))
                     {
                         sb.Append(update.Text);
-                        await SendStreamingChunkAsync(userId, conversationId, messageId, sb.ToString(), isComplete: false);
+                        // 清理多余的空行后再发送
+                        var cleanedContent = CleanExtraNewlines(sb.ToString());
+                        await SendStreamingChunkAsync(userId, conversationId, messageId, cleanedContent, isComplete: false);
                     }
                 }
 
                 // 发送完整内容
-                await SendStreamingChunkAsync(userId, conversationId, messageId, sb.ToString(), isComplete: true);
+                var finalContent = CleanExtraNewlines(sb.ToString());
+                await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
                 logger.LogInformation("[Chat] 简单聊天完成: MessageId={MessageId}", messageId);
             }
             catch (Exception ex)
@@ -365,10 +368,8 @@ namespace App.Controllers
                     logger.LogWarning("[Chat] 未找到相关文档: MessageId={MessageId}", messageId);
                     return;
                 }
-
                 // 2. 构建带上下文的消息列表
                 var messages = BuildRagMessages(context, baseMessages);
-
                 // 3. 转换为 AI 消息并调用 LLM
                 var aiMessages = ConvertToAiMessages(messages);
                 var options = BuildChatOptions(request);
@@ -381,11 +382,13 @@ namespace App.Controllers
                     if (update.Text != null)
                     {
                         sb.Append(update.Text);
-                        await SendStreamingChunkAsync(userId, conversationId, messageId, sb.ToString(), isComplete: false);
+                        // 清理多余的空行后再发送
+                        var cleanedContent = CleanExtraNewlines(sb.ToString());
+                        await SendStreamingChunkAsync(userId, conversationId, messageId, cleanedContent, isComplete: false);
                     }
                 }
-
-                await SendStreamingChunkAsync(userId, conversationId, messageId, sb.ToString(), isComplete: true);
+                var finalContent = CleanExtraNewlines(sb.ToString());
+                await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
                 logger.LogInformation("[Chat] RAG 聊天完成: MessageId={MessageId}", messageId);
             }
             catch (Exception ex)
@@ -466,11 +469,14 @@ namespace App.Controllers
                     if (update.Text != null)
                     {
                         sb.Append(update.Text);
-                        await SendStreamingChunkAsync(userId, conversationId, messageId, sb.ToString(), isComplete: false);
+                        // 清理多余的空行后再发送
+                        var cleanedContent = CleanExtraNewlines(sb.ToString());
+                        await SendStreamingChunkAsync(userId, conversationId, messageId, cleanedContent, isComplete: false);
                     }
                 }
 
-                await SendStreamingChunkAsync(userId, conversationId, messageId, sb.ToString(), isComplete: true);
+                var finalContent = CleanExtraNewlines(sb.ToString());
+                await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
                 logger.LogInformation("[Chat] 临时文件聊天完成: MessageId={MessageId}", messageId);
             }
             catch (Exception ex)
@@ -677,6 +683,26 @@ namespace App.Controllers
             }
 
             return options;
+        }
+
+        /// <summary>
+        /// 清理多余的空行（保留最多1个空行）
+        /// </summary>
+        private static string CleanExtraNewlines(string content)
+        {
+            if (string.IsNullOrEmpty(content))
+                return content;
+
+            // 使用正则表达式：将3个或以上的连续换行符替换为2个（保留1个空行）
+            var cleaned = System.Text.RegularExpressions.Regex.Replace(content, @"\n{3,}", "\n\n");
+
+            // 移除开头的空行
+            cleaned = cleaned.TrimStart('\n', '\r');
+
+            // 移除结尾的空行
+            cleaned = cleaned.TrimEnd('\n', '\r');
+
+            return cleaned;
         }
 
         /// <summary>

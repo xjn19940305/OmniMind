@@ -233,52 +233,19 @@ namespace OmniMind.Ingestion
                 ["messages"] = messageList,
                 ["stream"] = stream
             };
-
-            // 添加可选参数
-            if (options is not null)
+            if (options?.AdditionalProperties != null)
             {
-                // 尝试获取 MaxTokens
-                var maxTokensProp = options.GetType().GetProperty("MaxTokens");
-                if (maxTokensProp is not null)
+                foreach (var item in options.AdditionalProperties)
                 {
-                    var maxTokens = maxTokensProp.GetValue(options);
-                    if (maxTokens is int maxTokensVal && maxTokensVal > 0)
-                    {
-                        requestData["max_tokens"] = maxTokensVal;
-                    }
-                }
+                    // 避免 null 写入 JSON
+                    if (item.Value == null)
+                        continue;
 
-                // 尝试获取 Temperature
-                var tempProp = options.GetType().GetProperty("Temperature");
-                if (tempProp is not null)
-                {
-                    var temp = tempProp.GetValue(options);
-                    if (temp is float tempVal && tempVal > 0)
-                    {
-                        requestData["temperature"] = tempVal;
-                    }
-                }
+                    // 避免覆盖核心字段
+                    if (requestData.ContainsKey(item.Key))
+                        continue;
 
-                // 尝试获取 TopP
-                var topPProp = options.GetType().GetProperty("TopP");
-                if (topPProp is not null)
-                {
-                    var topP = topPProp.GetValue(options);
-                    if (topP is float topPVal && topPVal > 0)
-                    {
-                        requestData["top_p"] = topPVal;
-                    }
-                }
-
-                // 尝试获取 StopSequences
-                var stopProp = options.GetType().GetProperty("StopSequences");
-                if (stopProp is not null)
-                {
-                    var stop = stopProp.GetValue(options);
-                    if (stop is IList<string> stopSequences && stopSequences.Count > 0)
-                    {
-                        requestData["stop"] = stopSequences;
-                    }
+                    requestData[item.Key] = item.Value;
                 }
             }
 
