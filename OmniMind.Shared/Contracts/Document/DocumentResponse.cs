@@ -48,9 +48,14 @@ namespace OmniMind.Contracts.Document
         public string? SourceUri { get; init; }
 
         /// <summary>
-        /// 对象存储 Key
+        /// 对象存储 Key（笔记、网页链接等可为空）
         /// </summary>
-        public string ObjectKey { get; init; } = string.Empty;
+        public string? ObjectKey { get; init; }
+
+        /// <summary>
+        /// 文件大小（字节，笔记、网页链接等可为空）
+        /// </summary>
+        public long? FileSize { get; init; }
 
         /// <summary>
         /// 文件 Hash
@@ -81,6 +86,11 @@ namespace OmniMind.Contracts.Document
         /// 音频/视频转写文本
         /// </summary>
         public string? Transcription { get; init; }
+
+        /// <summary>
+        /// 文档内容（用于笔记、网页链接等文本内容）
+        /// </summary>
+        public string? Content { get; init; }
 
         /// <summary>
         /// 会话ID

@@ -56,7 +56,7 @@ namespace App.Controllers
         /// </summary>
         /// <param name="request">手机号</param>
         /// <returns></returns>
-        [HttpPost("sendVerificationCode", Name = "发送验证码")]
+        [HttpPost("sendVerificationCode")]
         public async Task<IActionResult> SendVerificationCode([FromBody] SendVerificationCodeRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.PhoneNumber))
@@ -89,7 +89,7 @@ namespace App.Controllers
         /// <summary>
         /// 验证验证码并获取可用租户列表
         /// </summary>
-        [HttpPost("verifyCode", Name = "验证验证码")]
+        [HttpPost("verifyCode")]
         public async Task<IActionResult> VerifyCode([FromBody] VerifyCodeRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.PhoneNumber) || string.IsNullOrWhiteSpace(request.VerificationCode))
@@ -134,7 +134,7 @@ namespace App.Controllers
         /// </summary>
         /// <param name="request">登录请求</param>
         /// <returns></returns>
-        [HttpPost("phoneSignIn", Name = "手机号登录")]
+        [HttpPost("phoneSignIn")]
         public async Task<IActionResult> PhoneSignIn([FromBody] PhoneSignInRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.PhoneNumber) ||
@@ -256,7 +256,7 @@ namespace App.Controllers
         /// <summary>
         /// 刷新Token
         /// </summary>
-        [HttpPost("refreshToken", Name = "刷新Token")]
+        [HttpPost("refreshToken")]
         public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.RefreshToken))
@@ -324,7 +324,7 @@ namespace App.Controllers
         /// <summary>
         /// 撤销RefreshToken（登出）
         /// </summary>
-        [HttpPost("revokeToken", Name = "撤销Token")]
+        [HttpPost("revokeToken")]
         public async Task<IActionResult> RevokeToken([FromBody] RevokeTokenRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.RefreshToken))
@@ -349,7 +349,7 @@ namespace App.Controllers
         /// <summary>
         /// 获取租户列表
         /// </summary>
-        [HttpGet("tenants", Name = "获取租户列表")]
+        [HttpGet("tenants")]
         public async Task<IActionResult> GetTenants()
         {
             var tenants = await dbContext.Tenants

@@ -59,7 +59,7 @@ namespace App.Controllers
         /// 统一聊天接口（通过 SignalR 流式响应）
         /// 如果提供了 KnowledgeBaseId 则使用 RAG 检索增强回答，否则直接调用模型
         /// </summary>
-        [HttpPost("chatStream", Name = "统一聊天流式")]
+        [HttpPost("chatStream")]
         [ProducesResponseType(typeof(ChatStreamResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ChatStream([FromBody] ChatRequest request)
@@ -128,7 +128,7 @@ namespace App.Controllers
         /// <summary>
         /// 检查文件哈希是否存在（用于文件去重复用）
         /// </summary>
-        [HttpPost("check-file-hash", Name = "检查文件哈希")]
+        [HttpPost("check-file-hash")]
         [ProducesResponseType(typeof(CheckFileHashResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> CheckFileHash([FromBody] CheckFileHashRequest request)
         {
@@ -175,7 +175,7 @@ namespace App.Controllers
         /// <summary>
         /// 上传临时文件（用于聊天的附件）
         /// </summary>
-        [HttpPost("upload", Name = "上传临时文件")]
+        [HttpPost("upload")]
         [ProducesResponseType(typeof(UploadResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> UploadTemporaryFile([FromForm] UploadFileRequest request)
@@ -268,7 +268,7 @@ namespace App.Controllers
         /// <summary>
         /// 获取临时文件内容
         /// </summary>
-        [HttpGet("files/{documentId}", Name = "获取临时文件")]
+        [HttpGet("files/{documentId}")]
         [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetTemporaryFile(string documentId)

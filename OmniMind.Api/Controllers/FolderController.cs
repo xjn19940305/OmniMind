@@ -1,9 +1,11 @@
 using OmniMind.Api.Swaggers;
+using OmniMind.Api.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OmniMind.Contracts.Common;
 using OmniMind.Contracts.Folder;
 using OmniMind.Entities;
+using OmniMind.Enums;
 using OmniMind.Persistence.PostgreSql;
 
 namespace App.Controllers
@@ -30,7 +32,7 @@ namespace App.Controllers
         /// <summary>
         /// 创建文件夹
         /// </summary>
-        [HttpPost(Name = "创建文件夹")]
+        [HttpPost]
         [ProducesResponseType(typeof(FolderResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> CreateFolder([FromBody] CreateFolderRequest request)
@@ -105,7 +107,7 @@ namespace App.Controllers
         /// <summary>
         /// 获取文件夹详情
         /// </summary>
-        [HttpGet("{id}", Name = "获取文件夹详情")]
+        [HttpGet("{id}")]
         [ProducesResponseType(typeof(FolderResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetFolder(string id)
@@ -126,10 +128,17 @@ namespace App.Controllers
         /// <summary>
         /// 获取文件夹树（知识库的所有文件夹，树形结构）
         /// </summary>
-        [HttpGet("tree/{knowledgeBaseId}", Name = "获取文件夹树")]
+        [HttpGet("tree/{knowledgeBaseId}")]
         [ProducesResponseType(typeof(List<FolderTreeResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetFolderTree(string knowledgeBaseId)
         {
+            // 权限检查
+            var authResult = await dbContext.CheckKnowledgeBaseAccessAsync(knowledgeBaseId, GetUserId());
+            if (!authResult.HasAccess)
+            {
+                return Ok(new List<FolderTreeResponse>());
+            }
+
             var folders = await dbContext.Folders
                 .Where(f => f.KnowledgeBaseId == knowledgeBaseId)
                 .OrderBy(f => f.SortOrder)
@@ -143,12 +152,19 @@ namespace App.Controllers
         /// <summary>
         /// 获取知识库的文件夹列表（平铺）
         /// </summary>
-        [HttpGet("list/{knowledgeBaseId}", Name = "获取文件夹列表")]
+        [HttpGet("list/{knowledgeBaseId}")]
         [ProducesResponseType(typeof(List<FolderResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetFolderList(
             string knowledgeBaseId,
             [FromQuery] string? parentFolderId = null)
         {
+            // 权限检查
+            var authResult = await dbContext.CheckKnowledgeBaseAccessAsync(knowledgeBaseId, GetUserId());
+            if (!authResult.HasAccess)
+            {
+                return Ok(new List<FolderResponse>());
+            }
+
             var query = dbContext.Folders
                 .Include(f => f.KnowledgeBase)
                 .Where(f => f.KnowledgeBaseId == knowledgeBaseId);
@@ -181,7 +197,7 @@ namespace App.Controllers
         /// <summary>
         /// 更新文件夹
         /// </summary>
-        [HttpPut("{id}", Name = "更新文件夹")]
+        [HttpPut("{id}")]
         [ProducesResponseType(typeof(FolderResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
@@ -236,7 +252,7 @@ namespace App.Controllers
         /// <summary>
         /// 移动文件夹
         /// </summary>
-        [HttpPatch("{id}/move", Name = "移动文件夹")]
+        [HttpPatch("{id}/move")]
         [ProducesResponseType(typeof(FolderResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
@@ -290,7 +306,7 @@ namespace App.Controllers
         /// <summary>
         /// 删除文件夹
         /// </summary>
-        [HttpDelete("{id}", Name = "删除文件夹")]
+        [HttpDelete("{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]

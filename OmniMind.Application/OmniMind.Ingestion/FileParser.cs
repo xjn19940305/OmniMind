@@ -10,7 +10,7 @@ namespace OmniMind.Ingestion
 {
     /// <summary>
     /// 默认文件解析器实现 - 跨平台版本
-    /// 支持：PDF、DOCX、TXT、Markdown、音频转写、视频转写
+    /// 支持：PDF、DOCX、TXT、Markdown、图片OCR、音频转写、视频转写
     /// </summary>
     public class FileParser : IFileParser
     {
@@ -27,6 +27,9 @@ namespace OmniMind.Ingestion
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "text/plain",
             "text/markdown",
+            // 图片类型
+            "image/jpeg", "image/jpg", "image/png", "image/gif", "image/bmp", "image/webp",
+            // 音频/视频类型
             "audio/mp3", "audio/mpeg", "audio/wav", "audio/m4a", "audio/x-m4a",
             "video/mp4", "video/mpeg", "video/quicktime"
         };
@@ -52,12 +55,52 @@ namespace OmniMind.Ingestion
                     => Task.Run(() => ParseDocx(stream), cancellationToken),
                 "text/plain" or "text/markdown" => ParseTextAsync(stream, cancellationToken),
 
+                // 图片 OCR 识别
+                var ct when ct.StartsWith("image/")
+                    => ParseImageAsync(stream, ct, cancellationToken),
+
                 // 音频/视频转写（统一使用 FunASR）
                 var ct when ct.StartsWith("audio/") || ct.StartsWith("video/")
                     => ParseMediaAsync(stream, ct, cancellationToken),
 
                 _ => throw new NotSupportedException($"不支持的文件类型: {contentType}")
             };
+        }
+
+        /// <summary>
+        /// 图片 OCR 识别
+        /// </summary>
+        private async Task<string> ParseImageAsync(Stream stream, string contentType, CancellationToken ct)
+        {
+            try
+            {
+                _logger?.LogInformation("开始图片OCR识别: ContentType={ContentType}", contentType);
+
+                // TODO: 实现图片 OCR 识别
+                // 可选方案：
+                // 1. Tesseract OCR - 开源，跨平台，需安装语言包
+                //    - NuGet: TesseractOCR
+                //    - 下载中文语言包 chi_sim.traineddata
+                // 2. PaddleOCR - 百度开源，中文效果好，需 Python 环境
+                // 3. Azure Computer Vision - 云服务，准确率高
+                // 4. Google Vision API - 云服务，准确率高
+                // 5. 阿里云 OCR - 云服务，支持中文
+
+                // 示例代码（使用 Tesseract）：
+                // using (var engine = new TesseractEngine(@"./tessdata", "chi_sim", EngineMode.Default))
+                // using (var img = Pix.LoadFromStream(stream))
+                // {
+                //     var page = engine.Process(img);
+                //     return page.GetText();
+                // }
+
+                throw new NotImplementedException("图片 OCR 功能待实现，请选择 OCR 方案并集成");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "图片OCR识别失败: ContentType={ContentType}", contentType);
+                throw new InvalidOperationException("图片 OCR 识别失败", ex);
+            }
         }
 
         /// <summary>

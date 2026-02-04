@@ -40,7 +40,7 @@ namespace App.Controllers
             this.logger = logger;
         }
 
-        [HttpPost("upload", Name = "上传文件")]
+        [HttpPost("upload")]
         public async Task<IActionResult> Upload()
         {
             //await storage.PutAsync("11",);
@@ -50,7 +50,7 @@ namespace App.Controllers
         /// <summary>
         /// 生成文档总结
         /// </summary>
-        [HttpPost("generate-summary", Name = "生成文档总结")]
+        [HttpPost("generate-summary")]
         [ProducesResponseType(typeof(GenerateSummaryResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GenerateSummary([FromBody] GenerateSummaryRequest request)

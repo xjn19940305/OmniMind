@@ -38,9 +38,9 @@ namespace OmniMind.Contracts.Document
         public string? SourceUri { get; init; }
 
         /// <summary>
-        /// 对象存储 Key
+        /// 对象存储 Key（笔记、网页链接等可为空）
         /// </summary>
-        public string ObjectKey { get; init; } = string.Empty;
+        public string? ObjectKey { get; init; }
 
         /// <summary>
         /// 文件 Hash
@@ -51,5 +51,10 @@ namespace OmniMind.Contracts.Document
         /// 语言
         /// </summary>
         public string? Language { get; init; }
+
+        /// <summary>
+        /// 文档内容（用于笔记、网页链接等文本内容）
+        /// </summary>
+        public string? Content { get; init; }
     }
 }
