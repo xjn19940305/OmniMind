@@ -11,91 +11,86 @@
         </div>
       </template>
 
-      <!-- Search and Filter -->
+      <!-- Search -->
       <div class="filter-bar">
         <el-input
           v-model="searchKeyword"
           placeholder="搜索知识库名称或描述"
           clearable
-          @clear="handleSearch"
-          @keyup.enter="handleSearch"
+          @input="handleSearch"
           class="search-input"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-select v-model="visibilityFilter" placeholder="可见性" clearable @change="handleSearch" class="filter-select">
-          <el-option label="私有" :value="1" />
-          <el-option label="内部" :value="2" />
-          <el-option label="公开" :value="3" />
-        </el-select>
       </div>
 
-      <!-- Knowledge Base List -->
-      <div class="kb-list" v-loading="loading">
-        <div
-          v-for="kb in knowledgeBases"
-          :key="kb.id"
-          class="kb-item"
-          :class="{ active: kb.id === activeKbId }"
-          @click="handleSelectKb(kb.id)"
-        >
-          <div class="kb-info">
-            <el-icon class="kb-icon" size="32">
-              <User v-if="kb.visibility === 1" />
-              <Collection v-else />
-            </el-icon>
-            <div class="kb-details">
-              <div class="kb-name">
-                {{ kb.name }}
-                <el-tag v-if="kb.visibility === 1" type="warning" size="small" class="ml-1">个人</el-tag>
-                <el-tag v-else type="success" size="small" class="ml-1">共享</el-tag>
-              </div>
-              <div class="kb-meta">
-                <el-tag :type="getVisibilityType(kb.visibility)" size="small">
-                  {{ getVisibilityLabel(kb.visibility) }}
-                </el-tag>
-                <span class="member-count">{{ kb.memberCount || 0 }} 个成员</span>
-                <span v-if="kb.ownerName" class="owner-name">拥有者: {{ kb.ownerName }}</span>
-              </div>
-              <div v-if="kb.description" class="kb-desc">{{ kb.description }}</div>
-            </div>
+      <div v-loading="loading" class="kb-content">
+        <!-- 个人知识库 -->
+        <div v-if="personalKB" class="kb-section">
+          <div class="section-header">
+            <el-icon class="section-icon"><User /></el-icon>
+            <span class="section-title">个人知识库</span>
           </div>
-          <el-dropdown @command="(cmd) => handleKbCommand(cmd, kb)">
-            <el-button text>
-              <el-icon><MoreFilled /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="open">
-                  <el-icon><FolderOpened /></el-icon> 打开
-                </el-dropdown-item>
-                <el-dropdown-item command="edit" :disabled="kb.visibility === 1">
-                  <el-icon><Edit /></el-icon> 编辑
-                </el-dropdown-item>
-                <el-dropdown-item command="delete" :disabled="kb.visibility === 1" divided>
-                  <el-icon><Delete /></el-icon> 删除
-                </el-dropdown-item>
-                <el-dropdown-item command="members" :disabled="kb.visibility === 1" divided>
-                  <el-icon><User /></el-icon> 成员管理
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <div class="kb-grid">
+            <KnowledgeCard
+              :kb="personalKB"
+              :active="personalKB.id === activeKbId"
+              :is-owner="true"
+              @select="handleSelectKb"
+              @command="handleKbCommand"
+            />
+          </div>
         </div>
-      </div>
 
-      <!-- Pagination -->
-      <el-pagination
-        v-if="totalCount > 0"
-        v-model:current-page="page"
-        v-model:page-size="pageSize"
-        :total="totalCount"
-        layout="prev, pager, next"
-        @current-change="loadKnowledgeBases"
-        class="pagination"
-      />
+        <!-- 我创建的知识库 -->
+        <div v-if="myCreatedKBs.length > 0" class="kb-section">
+          <div class="section-header">
+            <el-icon class="section-icon"><FolderOpened /></el-icon>
+            <span class="section-title">我创建的知识库</span>
+            <span class="section-count">{{ myCreatedKBs.length }}</span>
+          </div>
+          <div class="kb-grid">
+            <KnowledgeCard
+              v-for="kb in myCreatedKBs"
+              :key="kb.id"
+              :kb="kb"
+              :active="kb.id === activeKbId"
+              :is-owner="true"
+              @select="handleSelectKb"
+              @command="handleKbCommand"
+            />
+          </div>
+        </div>
+
+        <!-- 我加入的知识库 -->
+        <div v-if="joinedKBs.length > 0" class="kb-section">
+          <div class="section-header">
+            <el-icon class="section-icon"><Collection /></el-icon>
+            <span class="section-title">我加入的知识库</span>
+            <span class="section-count">{{ joinedKBs.length }}</span>
+          </div>
+          <div class="kb-grid">
+            <KnowledgeCard
+              v-for="kb in joinedKBs"
+              :key="kb.id"
+              :kb="kb"
+              :active="kb.id === activeKbId"
+              :is-owner="false"
+              @select="handleSelectKb"
+              @command="handleKbCommand"
+            />
+          </div>
+        </div>
+
+        <!-- 空状态 -->
+        <el-empty
+          v-if="!personalKB && myCreatedKBs.length === 0 && joinedKBs.length === 0"
+          description="暂无知识库，快来创建一个吧"
+          :image-size="200"
+        />
+      </div>
     </el-card>
 
     <!-- Knowledge Base Detail -->
@@ -319,8 +314,12 @@ import {
   removeKnowledgeBaseMember
 } from '../api/knowledge'
 import type { KnowledgeBase, KnowledgeBaseMember, Visibility, KnowledgeBaseMemberRole } from '../types'
+import { useUserStore } from '../stores/user'
+import KnowledgeCard from '../components/KnowledgeCard.vue'
 
 const router = useRouter()
+const userStore = useUserStore()
+const currentUserId = computed(() => userStore.userInfo?.id || '')
 
 const loading = ref(false)
 const createLoading = ref(false)
@@ -371,6 +370,25 @@ const activeKb = computed(() => {
 // 是否已有私有知识库
 const hasPrivateKnowledgeBase = computed(() => {
   return knowledgeBases.value.some(kb => kb.visibility === 1)
+})
+
+// 个人知识库
+const personalKB = computed(() => {
+  return knowledgeBases.value.find(kb => kb.visibility === 1) || null
+})
+
+// 我创建的知识库（排除个人知识库）
+const myCreatedKBs = computed(() => {
+  return knowledgeBases.value.filter(kb =>
+    kb.visibility !== 1 && kb.ownerUserId === currentUserId.value
+  )
+})
+
+// 我加入的知识库（非我创建的共享知识库）
+const joinedKBs = computed(() => {
+  return knowledgeBases.value.filter(kb =>
+    kb.visibility !== 1 && kb.ownerUserId !== currentUserId.value
+  )
 })
 
 const createRules: FormRules = {
@@ -588,41 +606,47 @@ async function handleRemoveMember(member: KnowledgeBaseMember) {
   }
 }
 
-async function handleKbCommand(command: string, kb: KnowledgeBase) {
+async function handleKbCommand(command: string, kb?: KnowledgeBase) {
+  // 如果是从 KnowledgeCard 传来的，需要找到对应的知识库
+  let targetKb = kb
+  if (!targetKb && activeKbId.value) {
+    targetKb = knowledgeBases.value.find(k => k.id === activeKbId.value)
+  }
+  if (!targetKb) return
   if (command === 'open') {
     // 跳转到知识库详情页
-    router.push(`/knowledge/${kb.id}`)
+    router.push(`/knowledge/${targetKb.id}`)
   } else if (command === 'edit') {
-    if (kb.visibility === 1) {
+    if (targetKb.visibility === 1) {
       ElMessage.warning('个人知识库不能编辑')
       return
     }
-    currentKb.value = kb
-    editForm.name = kb.name
-    editForm.description = kb.description || ''
-    editForm.visibility = kb.visibility
+    currentKb.value = targetKb
+    editForm.name = targetKb.name
+    editForm.description = targetKb.description || ''
+    editForm.visibility = targetKb.visibility
     showEditDialog.value = true
   } else if (command === 'members') {
-    if (kb.visibility === 1) {
+    if (targetKb.visibility === 1) {
       ElMessage.warning('个人知识库无需管理成员')
       return
     }
-    await handleShowMembers(kb)
+    await handleShowMembers(targetKb)
   } else if (command === 'delete') {
-    if (kb.visibility === 1) {
+    if (targetKb.visibility === 1) {
       ElMessage.warning('个人知识库不能删除')
       return
     }
-    ElMessageBox.confirm(`确定要删除知识库 "${kb.name}" 吗？`, '提示', {
+    ElMessageBox.confirm(`确定要删除知识库 "${targetKb.name}" 吗？`, '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
       .then(async () => {
         try {
-          await deleteKnowledgeBase(kb.id)
+          await deleteKnowledgeBase(targetKb.id)
           await loadKnowledgeBases()
-          if (activeKbId.value === kb.id) {
+          if (activeKbId.value === targetKb.id) {
             activeKbId.value = null
           }
           ElMessage.success('删除成功')
@@ -680,8 +704,8 @@ onMounted(() => {
 
 .knowledge-card,
 .detail-card {
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
 }
 
 .card-header {
@@ -690,8 +714,8 @@ onMounted(() => {
   align-items: center;
 
   .kb-title {
-    font-size: 16px;
-    font-weight: 500;
+    font-size: 18px;
+    font-weight: 600;
   }
 
   .ml-2 {
@@ -700,94 +724,58 @@ onMounted(() => {
 }
 
 .filter-bar {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 
   .search-input {
-    flex: 1;
-  }
-
-  .filter-select {
-    width: 150px;
+    max-width: 400px;
   }
 }
 
-.kb-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-  min-height: 200px;
+.kb-content {
+  min-height: 300px;
 }
 
-.kb-item {
+.kb-section {
+  margin-bottom: 32px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.section-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e4e7ed;
+}
 
-  &:hover {
-    border-color: #409eff;
-    box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
-  }
+.section-icon {
+  font-size: 20px;
+  color: #409eff;
+}
 
-  &.active {
-    border-color: #409eff;
-    background: #ecf5ff;
-  }
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
 
-  .kb-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1;
-    min-width: 0;
+.section-count {
+  margin-left: auto;
+  font-size: 13px;
+  color: #909399;
+  background: #f5f7fa;
+  padding: 2px 10px;
+  border-radius: 12px;
+}
 
-    .kb-icon {
-      color: #409eff;
-      flex-shrink: 0;
-    }
-
-    .kb-details {
-      flex: 1;
-      min-width: 0;
-
-      .kb-name {
-        font-size: 16px;
-        font-weight: 500;
-        margin-bottom: 6px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .kb-meta {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 4px;
-        flex-wrap: wrap;
-
-        .member-count,
-        .owner-name {
-          font-size: 12px;
-          color: #909399;
-        }
-      }
-
-      .kb-desc {
-        font-size: 12px;
-        color: #909399;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-    }
-  }
+.kb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
 }
 
 .members-header {
@@ -806,22 +794,14 @@ onMounted(() => {
   margin-top: 4px;
 }
 
-.pagination {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-}
-
 @media (max-width: 768px) {
-  .kb-list {
+  .kb-grid {
     grid-template-columns: 1fr;
   }
 
   .filter-bar {
-    flex-direction: column;
-
-    .filter-select {
-      width: 100%;
+    .search-input {
+      max-width: 100%;
     }
   }
 

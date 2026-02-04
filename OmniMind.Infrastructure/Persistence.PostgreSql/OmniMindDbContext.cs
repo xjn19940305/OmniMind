@@ -10,6 +10,7 @@ namespace OmniMind.Persistence.PostgreSql
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<KnowledgeBase> KnowledgeBases { get; set; }
         public DbSet<KnowledgeBaseMember> KnowledgeBaseMembers { get; set; }
+        public DbSet<KnowledgeBaseInvitation> KnowledgeBaseInvitations { get; set; }
         public DbSet<Folder> Folders { get; set; }
         public DbSet<Document> Documents { get; set; }
         public DbSet<DocumentVersion> DocumentVersions { get; set; }

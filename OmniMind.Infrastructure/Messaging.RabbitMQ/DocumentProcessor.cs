@@ -71,19 +71,43 @@ namespace OmniMind.Messaging.RabbitMQ
                         });
                 }
 
-                // 2. 从MinIO下载文件
-                logger?.LogInformation("[文档处理] 正在下载文件: {DocumentId}", document.Id);
-                var objectStorage = scope.ServiceProvider.GetRequiredService<IObjectStorage>();
-                var stream = await objectStorage.GetAsync(document.ObjectKey!);
+                // 2. 检查是否是直接存储内容的文档（笔记、网页链接等）
+                string extractedText;
 
-                // 使用 Document 表中存储的 ContentType（更准确）
-                var contentType = document.ContentType;
+                if (!string.IsNullOrWhiteSpace(document.Content))
+                {
+                    // 笔记、网页链接等，内容直接存储在 Content 字段
+                    logger?.LogInformation("[文档处理] 使用存储的内容: {DocumentId}, ContentType={ContentType}",
+                        document.Id, document.ContentType);
 
-                // 3. 解析文档内容/转写音频视频
-                logger?.LogInformation("[文档处理] 正在处理文件: {DocumentId}, ContentType={ContentType}",
-                    document.Id, contentType);
+                    // 对于网页链接，需要爬取网页内容
+                    if (document.ContentType == "text/html" || document.ContentType == "text/url")
+                    {
+                        // TODO: 网页链接处理 - 待实现
+                        // 方案1: 使用爬虫爬取网页内容（如 Puppeteer、Playwright、HtmlAgilityPack）
+                        // 方案2: 使用 MCP 协议获取网页内容
+                        // 目前暂时使用 URL 作为占位内容
+                        logger?.LogInformation("[文档处理] 网页链接文档，URL: {Url}，内容爬取待实现", document.Content);
+                    }
 
-                var extractedText = await fileParser.ParseAsync(stream, contentType, document.Id);
+                    extractedText = document.Content;
+                }
+                else
+                {
+                    // 从 MinIO 下载文件
+                    logger?.LogInformation("[文档处理] 正在下载文件: {DocumentId}", document.Id);
+                    var objectStorage = scope.ServiceProvider.GetRequiredService<IObjectStorage>();
+                    var stream = await objectStorage.GetAsync(document.ObjectKey!);
+
+                    // 使用 Document 表中存储的 ContentType（更准确）
+                    var contentType = document.ContentType;
+
+                    // 3. 解析文档内容/转写音频视频
+                    logger?.LogInformation("[文档处理] 正在处理文件: {DocumentId}, ContentType={ContentType}",
+                        document.Id, contentType);
+
+                    extractedText = await fileParser.ParseAsync(stream, contentType, document.Id);
+                }
 
                 if (string.IsNullOrWhiteSpace(extractedText))
                 {
@@ -219,13 +243,29 @@ namespace OmniMind.Messaging.RabbitMQ
                     // 获取向量维度（从第一个 embedding 获取）
                     var vectorSize = embeddings.FirstOrDefault()?.Vector.Length ?? 1024;
 
-                    // 确定集合名称：临时文件使用固定 collection，知识库文件使用 KnowledgeBaseId
-                    var documentCollectionName = string.IsNullOrEmpty(document?.KnowledgeBaseId)
-                        ? string.Empty  // 临时文件，使用固定的 documents_kb_ collection（通过 document_id 过滤器区分）
-                        : document.KnowledgeBaseId;  // 知识库文件，使用知识库ID
+                    // 确定集合名称：
+                    // - 知识库文件：document_kb_{KnowledgeBaseId}
+                    // - 临时文件（聊天上传）：document_session_{SessionId}
+                    string documentCollectionName;
+                    if (!string.IsNullOrEmpty(document.KnowledgeBaseId))
+                    {
+                        // 知识库文件
+                        documentCollectionName = $"document_kb_{document.KnowledgeBaseId}";
+                    }
+                    else if (!string.IsNullOrEmpty(document.SessionId))
+                    {
+                        // 临时文件（AI 聊天上传），按 SessionId 隔离
+                        documentCollectionName = $"document_session_{document.SessionId}";
+                    }
+                    else
+                    {
+                        // 兜底：不应该走到这里，但为了保险
+                        logger?.LogWarning("[文档处理] 文档既没有 KnowledgeBaseId 也没有 SessionId: DocumentId={DocumentId}", document.Id);
+                        documentCollectionName = $"document_fallback_{document.Id}";
+                    }
 
                     logger?.LogInformation("[文档处理] 使用集合: {CollectionName}, DocumentId={DocumentId}",
-                        string.IsNullOrEmpty(documentCollectionName) ? "documents_kb_" : documentCollectionName, document.Id);
+                        documentCollectionName, document.Id);
 
                     // 确保集合存在
                     await vectorStore.EnsureCollectionAsync(

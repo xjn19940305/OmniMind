@@ -43,6 +43,21 @@ namespace OmniMind.Contracts.KnowledgeBase
         public DateTimeOffset? UpdatedAt { get; init; }
 
         /// <summary>
+        /// 拥有者用户ID
+        /// </summary>
+        public string? OwnerUserId { get; init; }
+
+        /// <summary>
+        /// 拥有者名称
+        /// </summary>
+        public string? OwnerName { get; init; }
+
+        /// <summary>
+        /// 成员数量
+        /// </summary>
+        public int MemberCount { get; init; }
+
+        /// <summary>
         /// 挂载的工作空间数量
         /// </summary>
         public int WorkspaceCount { get; init; }

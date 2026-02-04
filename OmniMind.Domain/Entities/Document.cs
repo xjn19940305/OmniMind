@@ -82,11 +82,17 @@ namespace OmniMind.Entities
         public string? SourceUri { get; set; }
 
         /// <summary>
-        /// 原文件在对象存储中的 Key（建议 tenant 分区）
+        /// 原文件在对象存储中的 Key（笔记、网页链接等可为空）
         /// </summary>
-        [Required]
         [Column("object_key")]
-        public string ObjectKey { get; set; } = default!;
+        [MaxLength(512)]
+        public string? ObjectKey { get; set; }
+
+        /// <summary>
+        /// 文件大小（字节，笔记、网页链接等可为空）
+        /// </summary>
+        [Column("file_size")]
+        public long? FileSize { get; set; }
 
         /// <summary>
         /// 文件 Hash（用于去重/版本判断）
@@ -116,6 +122,18 @@ namespace OmniMind.Entities
         public string? Error { get; set; }
 
         /// <summary>
+        /// 重试次数
+        /// </summary>
+        [Column("retry_count")]
+        public int RetryCount { get; set; } = 0;
+
+        /// <summary>
+        /// 最后重试时间
+        /// </summary>
+        [Column("last_retry_at")]
+        public DateTimeOffset? LastRetryAt { get; set; }
+
+        /// <summary>
         /// 音频/视频时长（秒）
         /// </summary>
         [Column("duration")]
@@ -126,6 +144,12 @@ namespace OmniMind.Entities
         /// </summary>
         [Column("transcription", TypeName = "text")]
         public string? Transcription { get; set; }
+
+        /// <summary>
+        /// 文档内容（用于笔记、网页链接等文本内容）
+        /// </summary>
+        [Column("content", TypeName = "text")]
+        public string? Content { get; set; }
 
         /// <summary>
         /// 会话ID（用于关联聊天临时附件）

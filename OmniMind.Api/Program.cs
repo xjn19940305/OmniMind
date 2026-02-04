@@ -40,6 +40,7 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["CONFIG"]))
     builder.Configuration.AddJsonStream(new MemoryStream(Encoding.UTF8.GetBytes(builder.Configuration["CONFIG"]!)));
 }
 
+
 builder.Configuration
     .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 

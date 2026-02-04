@@ -24,6 +24,11 @@ namespace OmniMind.Contracts.Common
         /// 每页大小
         /// </summary>
         public int PageSize { get; init; }
+
+        /// <summary>
+        /// 提示消息（用于权限提示等）
+        /// </summary>
+        public string? Message { get; init; }
     }
 
     /// <summary>

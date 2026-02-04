@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OmniMind.Persistence.PostgreSql;
@@ -11,9 +12,11 @@ using OmniMind.Persistence.PostgreSql;
 namespace OmniMind.Persistence.PostgreSql.Migrations
 {
     [DbContext(typeof(OmniMindDbContext))]
-    partial class OmniMindDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260204174922_addkbinvitetable")]
+    partial class addkbinvitetable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -400,11 +403,6 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     b.Property<DateTimeOffset?>("AcceptedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("accepted_at");
-
-                    b.Property<string>("ApplicationReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("application_reason");
 
                     b.Property<string>("Code")
                         .IsRequired()

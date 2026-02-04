@@ -1,4 +1,5 @@
 using OmniMind.Api.Swaggers;
+using OmniMind.Api.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OmniMind.Contracts.Common;
@@ -31,7 +32,7 @@ namespace App.Controllers
         /// <summary>
         /// 创建知识库
         /// </summary>
-        [HttpPost(Name = "创建知识库")]
+        [HttpPost]
         [ProducesResponseType(typeof(KnowledgeBaseResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> CreateKnowledgeBase([FromBody] CreateKnowledgeBaseRequest request)
@@ -74,7 +75,7 @@ namespace App.Controllers
         /// <summary>
         /// 获取知识库详情
         /// </summary>
-        [HttpGet("{id}", Name = "获取知识库详情")]
+        [HttpGet("{id}")]
         [ProducesResponseType(typeof(KnowledgeBaseDetailResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetKnowledgeBase(string id)
@@ -90,6 +91,13 @@ namespace App.Controllers
                 return NotFound(new ErrorResponse { Message = $"知识库 {id} 不存在" });
             }
 
+            // 权限检查
+            var authResult = await dbContext.CheckKnowledgeBaseAccessAsync(knowledgeBase, GetUserId());
+            if (!authResult.HasAccess)
+            {
+                return StatusCode(403, new ErrorResponse { Message = authResult.Message ?? "无权访问此知识库" });
+            }
+
             var response = MapToDetailResponse(knowledgeBase);
             return Ok(response);
         }
@@ -97,7 +105,7 @@ namespace App.Controllers
         /// <summary>
         /// 获取知识库列表
         /// </summary>
-        [HttpGet(Name = "获取知识库列表")]
+        [HttpGet]
         [ProducesResponseType(typeof(PagedResponse<KnowledgeBaseResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetKnowledgeBases(
             [FromQuery] int page = 1,
@@ -134,13 +142,20 @@ namespace App.Controllers
 
             var knowledgeBases = await query
                 .Include(kb => kb.Owner)
-                .Include(kb => kb.Members)
                 .OrderByDescending(kb => kb.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
 
-            var responses = knowledgeBases.Select(MapToResponse).ToList();
+            // 获取成员数量
+            var kbIds = knowledgeBases.Select(kb => kb.Id).ToList();
+            var memberCounts = await dbContext.KnowledgeBaseMembers
+                .Where(m => kbIds.Contains(m.KnowledgeBaseId))
+                .GroupBy(m => m.KnowledgeBaseId)
+                .Select(g => new { KnowledgeBaseId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.KnowledgeBaseId, x => x.Count);
+
+            var responses = knowledgeBases.Select(kb => MapToResponse(kb, memberCounts.GetValueOrDefault(kb.Id, 0))).ToList();
 
             return Ok(new PagedResponse<KnowledgeBaseResponse>
             {
@@ -154,7 +169,7 @@ namespace App.Controllers
         /// <summary>
         /// 更新知识库
         /// </summary>
-        [HttpPut("{id}", Name = "更新知识库")]
+        [HttpPut("{id}")]
         [ProducesResponseType(typeof(KnowledgeBaseResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
@@ -203,7 +218,7 @@ namespace App.Controllers
         /// <summary>
         /// 删除知识库
         /// </summary>
-        [HttpDelete("{id}", Name = "删除知识库")]
+        [HttpDelete("{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteKnowledgeBase(string id)
@@ -223,7 +238,7 @@ namespace App.Controllers
         /// <summary>
         /// 添加知识库成员
         /// </summary>
-        [HttpPost("{id}/members", Name = "添加知识库成员")]
+        [HttpPost("{id}/members")]
         [ProducesResponseType(typeof(KnowledgeBaseMemberResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
@@ -265,7 +280,7 @@ namespace App.Controllers
         /// <summary>
         /// 更新知识库成员角色
         /// </summary>
-        [HttpPut("{id}/members/{userId}", Name = "更新知识库成员角色")]
+        [HttpPut("{id}/members/{userId}")]
         [ProducesResponseType(typeof(KnowledgeBaseMemberResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
@@ -289,7 +304,7 @@ namespace App.Controllers
         /// <summary>
         /// 移除知识库成员
         /// </summary>
-        [HttpDelete("{id}/members/{userId}", Name = "移除知识库成员")]
+        [HttpDelete("{id}/members/{userId}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> RemoveMember(string id, string userId)
@@ -311,7 +326,7 @@ namespace App.Controllers
         /// <summary>
         /// 获取知识库成员列表
         /// </summary>
-        [HttpGet("{id}/members", Name = "获取知识库成员列表")]
+        [HttpGet("{id}/members")]
         [ProducesResponseType(typeof(List<KnowledgeBaseMemberResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMembers(string id)
         {
@@ -325,7 +340,145 @@ namespace App.Controllers
             return Ok(responses);
         }
 
-        private static KnowledgeBaseResponse MapToResponse(KnowledgeBase kb)
+        /// <summary>
+        /// 获取知识库文件列表（文件夹+文档合并）
+        /// </summary>
+        [HttpGet("{id}/files")]
+        [ProducesResponseType(typeof(FileListResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetFileList(
+            string id,
+            [FromQuery] string? folderId = null,
+            [FromQuery] string? keyword = null)
+        {
+            // 验证知识库是否存在
+            var knowledgeBase = await dbContext.KnowledgeBases.FindAsync(id);
+            if (knowledgeBase == null)
+            {
+                return NotFound(new ErrorResponse { Message = $"知识库 {id} 不存在" });
+            }
+
+            // 构建面包屑路径
+            var path = new List<FolderBreadcrumbItem>();
+            if (!string.IsNullOrEmpty(folderId))
+            {
+                var currentFolder = await dbContext.Folders.FindAsync(folderId);
+                while (currentFolder != null && currentFolder.KnowledgeBaseId == id)
+                {
+                    path.Insert(0, new FolderBreadcrumbItem
+                    {
+                        Id = currentFolder.Id,
+                        Name = currentFolder.Name
+                    });
+
+                    if (!string.IsNullOrEmpty(currentFolder.ParentFolderId))
+                    {
+                        currentFolder = await dbContext.Folders.FindAsync(currentFolder.ParentFolderId);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+
+            // 获取子文件夹
+            var folderQuery = dbContext.Folders
+                .Where(f => f.KnowledgeBaseId == id);
+            if (string.IsNullOrEmpty(folderId))
+            {
+                // 根目录：ParentFolderId 为 null
+                folderQuery = folderQuery.Where(f => f.ParentFolderId == null);
+            }
+            else
+            {
+                // 子目录：ParentFolderId 等于指定的 folderId
+                folderQuery = folderQuery.Where(f => f.ParentFolderId == folderId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                folderQuery = folderQuery.Where(f => f.Name.Contains(keyword));
+            }
+
+            var folders = await folderQuery
+                .OrderBy(f => f.SortOrder)
+                .ThenBy(f => f.Name)
+                .ToListAsync();
+
+            // 获取文档
+            var documentQuery = dbContext.Documents
+                .Where(d => d.KnowledgeBaseId == id);
+
+            if (string.IsNullOrEmpty(folderId))
+            {
+                // 根目录：FolderId 为 null
+                documentQuery = documentQuery.Where(d => d.FolderId == null);
+            }
+            else
+            {
+                // 子目录：FolderId 等于指定的 folderId
+                documentQuery = documentQuery.Where(d => d.FolderId == folderId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                documentQuery = documentQuery.Where(d => d.Title.Contains(keyword));
+            }
+
+            var documents = await documentQuery
+                .OrderBy(d => d.Title)
+                .ToListAsync();
+
+            // 构建响应
+            var items = new List<FileItemResponse>();
+
+            // 添加文件夹项
+            foreach (var folder in folders)
+            {
+                items.Add(new FileItemResponse
+                {
+                    Id = folder.Id,
+                    Type = FileItemType.Folder,
+                    Name = folder.Name,
+                    Description = folder.Description,
+                    CreatedAt = folder.CreatedAt,
+                    UpdatedAt = folder.UpdatedAt
+                });
+            }
+
+            // 添加文档项
+            foreach (var doc in documents)
+            {
+                items.Add(new FileItemResponse
+                {
+                    Id = doc.Id,
+                    Type = FileItemType.Document,
+                    Name = doc.Title,
+                    ContentType = doc.ContentType,
+                    Status = doc.Status,
+                    SourceType = doc.SourceType,
+                    FileSize = doc.FileSize,
+                    Content = doc.Content,
+                    CreatedAt = doc.CreatedAt,
+                    UpdatedAt = doc.UpdatedAt
+                });
+            }
+
+            var response = new FileListResponse
+            {
+                KnowledgeBaseId = id,
+                CurrentFolderId = folderId,
+                Path = path,
+                Items = items,
+                FolderCount = folders.Count,
+                DocumentCount = documents.Count
+            };
+
+            return Ok(response);
+        }
+
+        private static KnowledgeBaseResponse MapToResponse(KnowledgeBase kb, int memberCount = 0)
         {
             return new KnowledgeBaseResponse
             {
@@ -336,6 +489,9 @@ namespace App.Controllers
                 IndexProfileId = kb.IndexProfileId,
                 CreatedAt = kb.CreatedAt,
                 UpdatedAt = kb.UpdatedAt,
+                OwnerUserId = kb.OwnerUserId,
+                OwnerName = kb.Owner?.NickName ?? kb.Owner?.UserName,
+                MemberCount = memberCount,
                 WorkspaceCount = 0,
                 Workspaces = null
             };
@@ -379,59 +535,4 @@ namespace App.Controllers
             };
         }
     }
-
-    #region Request/Response Models
-
-    /// <summary>
-    /// 添加知识库成员请求
-    /// </summary>
-    public class AddKnowledgeBaseMemberRequest
-    {
-        public string UserId { get; set; } = string.Empty;
-        public KnowledgeBaseMemberRole Role { get; set; } = KnowledgeBaseMemberRole.Viewer;
-    }
-
-    /// <summary>
-    /// 更新知识库成员请求
-    /// </summary>
-    public class UpdateKnowledgeBaseMemberRequest
-    {
-        public KnowledgeBaseMemberRole Role { get; set; }
-    }
-
-    /// <summary>
-    /// 知识库成员响应
-    /// </summary>
-    public class KnowledgeBaseMemberResponse
-    {
-        public string Id { get; set; } = string.Empty;
-        public string KnowledgeBaseId { get; set; } = string.Empty;
-        public string UserId { get; set; } = string.Empty;
-        public KnowledgeBaseMemberRole Role { get; set; }
-        public DateTimeOffset CreatedAt { get; set; }
-    }
-
-    /// <summary>
-    /// 知识库详情响应
-    /// </summary>
-    public record KnowledgeBaseDetailResponse : KnowledgeBaseResponse
-    {
-        public string? OwnerUserId { get; init; }
-        public string? OwnerName { get; init; }
-        public int MemberCount { get; init; }
-        public List<MemberRef> Members { get; init; } = new();
-    }
-
-    /// <summary>
-    /// 成员引用
-    /// </summary>
-    public record MemberRef
-    {
-        public string UserId { get; set; } = string.Empty;
-        public string? UserName { get; set; }
-        public KnowledgeBaseMemberRole Role { get; set; }
-        public DateTimeOffset JoinedAt { get; set; }
-    }
-
-    #endregion
 }

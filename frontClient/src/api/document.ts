@@ -39,14 +39,59 @@ export function createDocument(data: {
   contentType: number
   sourceType: number
   sourceUri?: string
-  objectKey: string
+  objectKey?: string
   fileHash?: string
   language?: string
+  content?: string
 }) {
   return request<Document>({
     url: '/api/Document',
     method: 'post',
     data
+  })
+}
+
+/**
+ * 创建笔记
+ */
+export function createNote(data: {
+  knowledgeBaseId: string
+  folderId?: string
+  title: string
+  content: string
+}) {
+  return request<Document>({
+    url: '/api/Document',
+    method: 'post',
+    data: {
+      ...data,
+      contentType: 'text/markdown',
+      sourceType: 1
+    }
+  })
+}
+
+/**
+ * 创建网页链接
+ */
+export function createWebLink(data: {
+  knowledgeBaseId: string
+  folderId?: string
+  title: string
+  url: string
+}) {
+  return request<Document>({
+    url: '/api/Document',
+    method: 'post',
+    data: {
+      knowledgeBaseId: data.knowledgeBaseId,
+      folderId: data.folderId,
+      title: data.title,
+      contentType: 'text/html',
+      sourceType: 2,
+      sourceUri: data.url,
+      content: data.url
+    }
   })
 }
 

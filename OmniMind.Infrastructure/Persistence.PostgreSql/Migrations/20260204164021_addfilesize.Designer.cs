@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OmniMind.Persistence.PostgreSql;
@@ -11,9 +12,11 @@ using OmniMind.Persistence.PostgreSql;
 namespace OmniMind.Persistence.PostgreSql.Migrations
 {
     [DbContext(typeof(OmniMindDbContext))]
-    partial class OmniMindDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260204164021_addfilesize")]
+    partial class addfilesize
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -91,10 +94,6 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         .HasColumnType("text")
                         .HasColumnName("id");
 
-                    b.Property<string>("Content")
-                        .HasColumnType("text")
-                        .HasColumnName("content");
-
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -124,7 +123,7 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         .HasColumnType("text")
                         .HasColumnName("file_hash");
 
-                    b.Property<long?>("FileSize")
+                    b.Property<long>("FileSize")
                         .HasColumnType("bigint")
                         .HasColumnName("file_size");
 
@@ -141,18 +140,10 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("language");
 
-                    b.Property<DateTimeOffset?>("LastRetryAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_retry_at");
-
                     b.Property<string>("ObjectKey")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)")
+                        .IsRequired()
+                        .HasColumnType("text")
                         .HasColumnName("object_key");
-
-                    b.Property<int>("RetryCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("retry_count");
 
                     b.Property<string>("SessionId")
                         .HasMaxLength(64)
@@ -389,85 +380,6 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     b.HasIndex("OwnerUserId");
 
                     b.ToTable("knowledge_bases");
-                });
-
-            modelBuilder.Entity("OmniMind.Entities.KnowledgeBaseInvitation", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset?>("AcceptedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("accepted_at");
-
-                    b.Property<string>("ApplicationReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("application_reason");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("code");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Email")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("email");
-
-                    b.Property<DateTimeOffset>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("expires_at");
-
-                    b.Property<string>("InviteeUserId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("invitee_user_id");
-
-                    b.Property<string>("InviterUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("inviter_user_id");
-
-                    b.Property<string>("KnowledgeBaseId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("knowledge_base_id");
-
-                    b.Property<bool>("RequireApproval")
-                        .HasColumnType("boolean")
-                        .HasColumnName("require_approval");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("integer")
-                        .HasColumnName("role");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer")
-                        .HasColumnName("status");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code");
-
-                    b.HasIndex("Email");
-
-                    b.HasIndex("InviterUserId");
-
-                    b.HasIndex("KnowledgeBaseId");
-
-                    b.ToTable("knowledge_base_invitations");
                 });
 
             modelBuilder.Entity("OmniMind.Entities.KnowledgeBaseMember", b =>
@@ -968,25 +880,6 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         .IsRequired();
 
                     b.Navigation("Owner");
-                });
-
-            modelBuilder.Entity("OmniMind.Entities.KnowledgeBaseInvitation", b =>
-                {
-                    b.HasOne("OmniMind.Entities.User", "InviterUser")
-                        .WithMany()
-                        .HasForeignKey("InviterUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("OmniMind.Entities.KnowledgeBase", "KnowledgeBase")
-                        .WithMany()
-                        .HasForeignKey("KnowledgeBaseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("InviterUser");
-
-                    b.Navigation("KnowledgeBase");
                 });
 
             modelBuilder.Entity("OmniMind.Entities.KnowledgeBaseMember", b =>
