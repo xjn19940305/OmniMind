@@ -26,13 +26,13 @@ namespace OmniMind.Entities
         /// </summary>
         [Required]
         [Column("knowledge_base_id")]
-        public string? KnowledgeBaseId { get; set; }
+        public string KnowledgeBaseId { get; set; } = default!;
 
         /// <summary>
         /// 所属知识库
         /// </summary>
         [ForeignKey(nameof(KnowledgeBaseId))]
-        public KnowledgeBase? KnowledgeBase { get; set; }
+        public KnowledgeBase KnowledgeBase { get; set; } = default!;
 
         /// <summary>
         /// 父文件夹ID（null 表示根目录）

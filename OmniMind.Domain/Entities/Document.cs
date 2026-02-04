@@ -53,18 +53,6 @@ namespace OmniMind.Entities
         public Folder? Folder { get; set; }
 
         /// <summary>
-        /// 导入归属工作空间ID（追溯"从哪个空间导入/归档"，媒体文件/临时附件可为 NULL）
-        /// </summary>
-        [Column("workspace_id")]
-        public string? WorkspaceId { get; set; }
-
-        /// <summary>
-        /// 导入归属工作空间
-        /// </summary>
-        [ForeignKey(nameof(WorkspaceId))]
-        public Workspace Workspace { get; set; } = default!;
-
-        /// <summary>
         /// 标题/显示名称
         /// </summary>
         [Required]
@@ -136,7 +124,7 @@ namespace OmniMind.Entities
         /// <summary>
         /// 音频/视频转写文本
         /// </summary>
-        [Column("transcription", TypeName = "longtext")]
+        [Column("transcription", TypeName = "text")]
         public string? Transcription { get; set; }
 
         /// <summary>

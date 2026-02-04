@@ -66,13 +66,13 @@ namespace OmniMind.Entities
         /// 可检索内容（统一为文本）
         /// </summary>
         [Required]
-        [Column("content", TypeName = "longtext")]
+        [Column("content", TypeName = "text")]
         public string Content { get; set; } = default!;
 
         /// <summary>
         /// 扩展信息（JSON）：speaker/time/ocr bbox/图表结构等
         /// </summary>
-        [Column("extra_json", TypeName = "longtext")]
+        [Column("extra_json", TypeName = "text")]
         public string? ExtraJson { get; set; }
 
         /// <summary>

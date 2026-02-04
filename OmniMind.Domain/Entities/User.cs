@@ -2,13 +2,13 @@
 using OmniMind.Enums;
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace OmniMind.Entities
 {
     public class User : IdentityUser
     {
         public string? NickName { get; set; }
+
         /// <summary>
         /// 用户的性别
         /// </summary>
@@ -37,5 +37,14 @@ namespace OmniMind.Entities
         /// </summary>
         public DateTime? LastSignDate { get; set; }
 
+        /// <summary>
+        /// 用户拥有的知识库集合
+        /// </summary>
+        public ICollection<KnowledgeBase> OwnedKnowledgeBases { get; set; } = new List<KnowledgeBase>();
+
+        /// <summary>
+        /// 用户作为成员参与的知识库集合
+        /// </summary>
+        public ICollection<KnowledgeBaseMember> KnowledgeBaseMemberships { get; set; } = new List<KnowledgeBaseMember>();
     }
 }

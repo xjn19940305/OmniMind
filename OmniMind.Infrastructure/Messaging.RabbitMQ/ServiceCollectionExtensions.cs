@@ -25,6 +25,9 @@ namespace OmniMind.Messaging.RabbitMQ
             // 配置RabbitMQ选项
             services.Configure<RabbitMQOptions>(configuration.GetSection("rabbitMQ"));
 
+            // 注册队列初始化器（确保队列在启动时被声明）
+            services.AddHostedService<RabbitMQInitializer>();
+
             // 注册消息发布者（单例）
             services.AddSingleton<IMessagePublisher, RabbitMQMessagePublisher>();
 

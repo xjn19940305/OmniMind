@@ -1,6 +1,9 @@
 <Solution>
+  <Folder Name="/OmniMind.Api/">
+    <Project Path="OmniMind.Api/OmniMind.Api.csproj" />
+  </Folder>
   <Folder Name="/OmniMind.Application/">
-    <Project Path="OmniMind.Application/OmniMind.Abstractions/OmniMind.Application.csproj" />
+    <Project Path="OmniMind.Application/OmniMind.Application/OmniMind.Application.csproj" />
     <Project Path="OmniMind.Application/OmniMind.Ingestion/OmniMind.Ingestion.csproj" />
     <Project Path="OmniMind.Application/Orchestrator/OmniMind.Orchestrator.csproj" />
   </Folder>
@@ -11,8 +14,8 @@
   <Folder Name="/OmniMind.Infrastructure/">
     <Project Path="OmniMind.Infrastructure/Messaging.RabbitMQ/OmniMind.Messaging.RabbitMQ.csproj" />
     <Project Path="OmniMind.Infrastructure/OmniMind.Infrastructure/OmniMind.Infrastructure.csproj" />
-    <Project Path="OmniMind.Infrastructure/OmniMind.QuartZ/OmniMind.QuartZ.csproj" />
-    <Project Path="OmniMind.Infrastructure/Persistence.MySql/OmniMind.Persistence.MySql.csproj" />
+    <Project Path="OmniMind.Infrastructure/OmniMind.Scheduling/OmniMind.Scheduling.csproj" />
+    <Project Path="OmniMind.Infrastructure/Persistence.PostgreSql/OmniMind.Persistence.PostgreSql.csproj" />
     <Project Path="OmniMind.Infrastructure/Realtime.SignalR/OmniMind.Realtime.SignalR.csproj" />
     <Project Path="OmniMind.Infrastructure/Storage.Minio/OmniMind.Storage.Minio.csproj" />
     <Project Path="OmniMind.Infrastructure/Vector.Qdrant/OmniMind.Vector.Qdrant.csproj" />
@@ -22,6 +25,7 @@
     <Project Path="OmniMind.Shared/Contracts/OmniMind.Contracts.csproj" />
     <Project Path="OmniMind.Shared/Enums/OmniMind.Enums.csproj" />
     <Project Path="OmniMind.Shared/Kernel/OmniMind.Kernel.csproj" />
+    <Project Path="OmniMind.Shared/OmniMind.Works/OmniMind.Works.csproj" Id="7ac9529b-3890-425e-803f-ef81808f189c" />
   </Folder>
 
   <SolutionFolder Name="OmniMind.Shared">
@@ -38,7 +42,7 @@
 
   <SolutionFolder Name="OmniMind.Infrastructure">
     <Project Path="OmniMind.Infrastructure/OmniMind.Infrastructure/OmniMind.Infrastructure.csproj" Id="3fe4173b-faae-4501-964c-d56091235a76" />
-    <Project Path="OmniMind.Infrastructure/Persistence.MySql/OmniMind.Persistence.MySql.csproj" />
+    <Project Path="OmniMind.Infrastructure/Persistence.PostgreSql/OmniMind.Persistence.PostgreSql.csproj" />
     <Project Path="OmniMind.Infrastructure/Storage.Minio/OmniMind.Storage.Minio.csproj" />
     <Project Path="OmniMind.Infrastructure/Vector.Qdrant/OmniMind.Vector.Qdrant.csproj" />
     <Project Path="OmniMind.Infrastructure/Messaging.RabbitMQ/OmniMind.Messaging.RabbitMQ.csproj" />
@@ -46,16 +50,20 @@
   </SolutionFolder>
 
   <SolutionFolder Name="OmniMind.Application">
-    <Project Path="OmniMind.Application/OmniMind.Abstractions/OmniMind.Application.csproj" Id="e5f3d076-36c8-45b7-9075-658922ecc4c9" />
+    <Project Path="OmniMind.Application/OmniMind.Application/OmniMind.Application.csproj" Id="app-layer-guid" />
     <Project Path="OmniMind.Application/OmniMind.Ingestion/OmniMind.Ingestion.csproj" Id="fd5de9c7-25cb-49c3-9c82-0d2dce1ca9be" />
     <Project Path="OmniMind.Application/Orchestrator/OmniMind.Orchestrator.csproj" />
   </SolutionFolder>
 
-  <SolutionFolder Name="OmniMind.BackgroundJobs">
-    <Project Path="OmniMind.QuartZ/OmniMind.QuartZ.csproj" Id="3a188a24-2873-4cd0-97a6-3e7284045b46" />
+  <SolutionFolder Name="OmniMind.Api">
+    <Project Path="OmniMind.Api/OmniMind.Api.csproj" Id="api-guid" />
   </SolutionFolder>
+
+  <SolutionFolder Name="OmniMind.Workers">
+    <Project Path="OmniMind.Workers/OmniMind.Workers.csproj" Id="workers-guid" />
+  </SolutionFolder>
+
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
-  <Project Path="App/App.csproj" Id="5a4337d5-1dc9-4c03-914f-56f481793455" />
 </Solution>
