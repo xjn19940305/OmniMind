@@ -34,12 +34,6 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, title: '知识库详情' }
       },
       {
-        path: '/workspace',
-        name: 'Workspace',
-        component: () => import('../views/Workspace.vue'),
-        meta: { requiresAuth: true, title: '工作空间' }
-      },
-      {
         path: '/profile',
         name: 'Profile',
         component: () => import('../views/Profile.vue'),

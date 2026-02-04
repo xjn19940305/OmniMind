@@ -57,9 +57,9 @@
               <el-icon><Collection /></el-icon>
               <template #title>知识库</template>
             </el-menu-item>
-            <el-menu-item index="/workspace">
-              <el-icon><OfficeBuilding /></el-icon>
-              <template #title>工作空间</template>
+            <el-menu-item index="/profile">
+              <el-icon><User /></el-icon>
+              <template #title>个人中心</template>
             </el-menu-item>
           </el-menu>
         </el-aside>
@@ -86,10 +86,6 @@
             <el-menu-item index="/knowledge">
               <el-icon><Collection /></el-icon>
               <template #title>知识库</template>
-            </el-menu-item>
-            <el-menu-item index="/workspace">
-              <el-icon><OfficeBuilding /></el-icon>
-              <template #title>工作空间</template>
             </el-menu-item>
             <el-menu-item index="/profile">
               <el-icon><User /></el-icon>

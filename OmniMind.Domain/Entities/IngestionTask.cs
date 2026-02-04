@@ -15,7 +15,7 @@ namespace OmniMind.Entities
     /// </summary>
     [Table("ingestion_tasks")]
     [Index(nameof(DocumentId), nameof(Status))]
-    [Index(nameof(WorkspaceId), nameof(KnowledgeBaseId), nameof(CreatedAt))]
+    [Index(nameof(KnowledgeBaseId), nameof(CreatedAt))]
     public class IngestionTask
     {
         /// <summary>
@@ -24,13 +24,6 @@ namespace OmniMind.Entities
         [Key]
         [Column("id")]
         public string Id { get; set; } = Guid.CreateVersion7().ToString();
-
-        /// <summary>
-        /// 工作空间ID（任务归属空间）
-        /// </summary>
-        [Required]
-        [Column("workspace_id")]
-        public required string WorkspaceId { get; set; }
 
         /// <summary>
         /// 知识库ID（任务归属知识库）

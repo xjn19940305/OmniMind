@@ -1,9 +1,11 @@
 import request from '../utils/request'
 import type {
   KnowledgeBase,
+  KnowledgeBaseDetail,
+  KnowledgeBaseMember,
   PaginatedResponse,
-  KnowledgeBaseWorkspaceLink,
-  Visibility
+  Visibility,
+  KnowledgeBaseMemberRole
 } from '../types'
 
 /**
@@ -26,7 +28,7 @@ export function getKnowledgeBases(params?: {
  * 获取知识库详情
  */
 export function getKnowledgeBase(id: string) {
-  return request<KnowledgeBase>({
+  return request<KnowledgeBaseDetail>({
     url: `/api/KnowledgeBase/${id}`,
     method: 'get'
   })
@@ -77,30 +79,58 @@ export function deleteKnowledgeBase(id: string) {
   })
 }
 
+// ==================== 成员管理 API ====================
+
 /**
- * 挂载知识库到工作空间
+ * 获取知识库成员列表
  */
-export function mountKnowledgeBase(
+export function getKnowledgeBaseMembers(knowledgeBaseId: string) {
+  return request<KnowledgeBaseMember[]>({
+    url: `/api/KnowledgeBase/${knowledgeBaseId}/members`,
+    method: 'get'
+  })
+}
+
+/**
+ * 添加知识库成员
+ */
+export function addKnowledgeBaseMember(
   knowledgeBaseId: string,
   data: {
-    workspaceId: string
-    aliasName?: string
-    sortOrder?: number
+    userId: string
+    role: KnowledgeBaseMemberRole
   }
 ) {
-  return request<KnowledgeBaseWorkspaceLink>({
-    url: `/api/KnowledgeBase/${knowledgeBaseId}/workspaces`,
+  return request<KnowledgeBaseMember>({
+    url: `/api/KnowledgeBase/${knowledgeBaseId}/members`,
     method: 'post',
     data
   })
 }
 
 /**
- * 从工作空间卸载知识库
+ * 更新知识库成员角色
  */
-export function unmountKnowledgeBase(knowledgeBaseId: string, workspaceId: string) {
+export function updateKnowledgeBaseMember(
+  knowledgeBaseId: string,
+  userId: string,
+  data: {
+    role: KnowledgeBaseMemberRole
+  }
+) {
+  return request<KnowledgeBaseMember>({
+    url: `/api/KnowledgeBase/${knowledgeBaseId}/members/${userId}`,
+    method: 'put',
+    data
+  })
+}
+
+/**
+ * 移除知识库成员
+ */
+export function removeKnowledgeBaseMember(knowledgeBaseId: string, userId: string) {
   return request({
-    url: `/api/KnowledgeBase/${knowledgeBaseId}/workspaces/${workspaceId}`,
+    url: `/api/KnowledgeBase/${knowledgeBaseId}/members/${userId}`,
     method: 'delete'
   })
 }

@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>OmniMind.Infrastructure.Scheduling</RootNamespace>
+		<AssemblyName>OmniMind.Infrastructure.Scheduling</AssemblyName>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Quartz" Version="3.15.1" />
+		<PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
+		<PackageReference Include="Microsoft.Extensions.Options" Version="9.0.4" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.4" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\OmniMind.Domain\Entities\OmniMind.Entities.csproj" />
+		<ProjectReference Include="..\..\OmniMind.Infrastructure\Persistence.PostgreSql\OmniMind.Persistence.PostgreSql.csproj" />
+		<ProjectReference Include="..\Messaging.RabbitMQ\OmniMind.Messaging.RabbitMQ.csproj" />
+		<ProjectReference Include="..\..\OmniMind.Shared\Contracts\OmniMind.Contracts.csproj" />
+	</ItemGroup>
+
+</Project>

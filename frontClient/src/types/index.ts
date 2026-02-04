@@ -62,17 +62,10 @@ export enum Visibility {
   Public = 3
 }
 
-export enum WorkspaceType {
-  Personal = 1,
-  Team = 2,
-  Shared = 3
-}
-
-export enum WorkspaceRole {
-  Owner = 1,
-  Admin = 2,
-  Member = 3,
-  Viewer = 4
+export enum KnowledgeBaseMemberRole {
+  Admin = 1,
+  Editor = 2,
+  Viewer = 3
 }
 
 export enum ContentType {
@@ -107,11 +100,26 @@ export interface KnowledgeBase {
   name: string
   description?: string
   visibility: Visibility
+  ownerUserId?: string
+  ownerName?: string
   indexProfileId?: string
   createdAt: string
   updatedAt?: string
-  workspaceCount: number
-  workspaces?: WorkspaceRef[]
+  memberCount?: number
+}
+
+export interface KnowledgeBaseDetail extends KnowledgeBase {
+  memberCount: number
+  members?: KnowledgeBaseMember[]
+}
+
+export interface KnowledgeBaseMember {
+  id: string
+  knowledgeBaseId: string
+  userId: string
+  userName?: string
+  role: KnowledgeBaseMemberRole
+  createdAt: string
 }
 
 // Folder types
@@ -141,74 +149,11 @@ export interface FolderTreeResponse {
   children?: FolderTreeResponse[]
 }
 
-export interface WorkspaceRef {
-  id: string
-  name: string
-  aliasName?: string
-  sortOrder: number
-}
-
-export interface KnowledgeBaseWorkspaceLink {
-  id: string
-  knowledgeBaseId: string
-  knowledgeBaseName: string
-  workspaceId: string
-  workspaceName: string
-  aliasName?: string
-  sortOrder: number
-  createdAt: string
-}
-
-// Workspace types
-export interface Workspace {
-  id: string
-  name: string
-  type: WorkspaceType
-  ownerUserId: string
-  createdAt: string
-  updatedAt?: string
-}
-
-export interface WorkspaceDetail {
-  id: string
-  name: string
-  type: WorkspaceType
-  ownerUserId: string
-  createdAt: string
-  updatedAt?: string
-  knowledgeBaseCount: number
-  memberCount: number
-  knowledgeBases?: KnowledgeBaseRef[]
-  members?: MemberRef[]
-}
-
-export interface KnowledgeBaseRef {
-  id: string
-  name: string
-  aliasName?: string
-  sortOrder: number
-}
-
-export interface MemberRef {
-  userId: string
-  role: WorkspaceRole
-  joinedAt: string
-}
-
-export interface WorkspaceMember {
-  id: string
-  workspaceId: string
-  userId: string
-  role: WorkspaceRole
-  createdAt: string
-}
-
-// Document types (placeholder for future implementation)
+// Document types
 export interface Document {
   id: string
   knowledgeBaseId: string
   folderId?: string
-  workspaceId: string
   title: string
   contentType: ContentType
   sourceType: SourceType
@@ -218,6 +163,10 @@ export interface Document {
   language?: string
   status: DocumentStatus
   error?: string
+  duration?: number
+  transcription?: string
+  sessionId?: string
+  chunkCount?: number
   createdByUserId: string
   createdAt: string
   updatedAt?: string

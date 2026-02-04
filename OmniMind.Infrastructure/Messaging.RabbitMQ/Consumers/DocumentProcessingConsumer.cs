@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OmniMind.Enums;
-using OmniMind.Persistence.MySql;
+using OmniMind.Persistence.PostgreSql;
 using System;
 using System.Reflection;
 

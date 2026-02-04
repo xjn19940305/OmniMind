@@ -7,7 +7,7 @@ using OmniMind.Abstractions.SignalR;
 using OmniMind.Abstractions.Storage;
 using OmniMind.Entities;
 using OmniMind.Enums;
-using OmniMind.Persistence.MySql;
+using OmniMind.Persistence.PostgreSql;
 using System.Diagnostics;
 
 namespace OmniMind.Messaging.RabbitMQ

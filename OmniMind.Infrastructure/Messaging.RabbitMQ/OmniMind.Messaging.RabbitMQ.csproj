@@ -11,12 +11,14 @@
 		<PackageReference Include="PdfPig" Version="0.1.13" />
 		<PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
 		<PackageReference Include="Microsoft.Extensions.Options" Version="9.0.4" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.4" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.4" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.4" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\Persistence.MySql\OmniMind.Persistence.MySql.csproj" />
+	  <ProjectReference Include="..\Persistence.PostgreSql\OmniMind.Persistence.PostgreSql.csproj" />
 	  <ProjectReference Include="..\..\OmniMind.Application\OmniMind.Ingestion\OmniMind.Ingestion.csproj" />
 	  <ProjectReference Include="..\..\OmniMind.Shared\Abstractions\OmniMind.Abstractions.csproj" />
 	</ItemGroup>

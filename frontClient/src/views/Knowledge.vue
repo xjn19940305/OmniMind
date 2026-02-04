@@ -42,14 +42,22 @@
           @click="handleSelectKb(kb.id)"
         >
           <div class="kb-info">
-            <el-icon class="kb-icon" size="32"><Folder /></el-icon>
+            <el-icon class="kb-icon" size="32">
+              <User v-if="kb.visibility === 1" />
+              <Collection v-else />
+            </el-icon>
             <div class="kb-details">
-              <div class="kb-name">{{ kb.name }}</div>
+              <div class="kb-name">
+                {{ kb.name }}
+                <el-tag v-if="kb.visibility === 1" type="warning" size="small" class="ml-1">个人</el-tag>
+                <el-tag v-else type="success" size="small" class="ml-1">共享</el-tag>
+              </div>
               <div class="kb-meta">
                 <el-tag :type="getVisibilityType(kb.visibility)" size="small">
                   {{ getVisibilityLabel(kb.visibility) }}
                 </el-tag>
-                <span class="workspace-count">{{ kb.workspaceCount }} 个工作空间</span>
+                <span class="member-count">{{ kb.memberCount || 0 }} 个成员</span>
+                <span v-if="kb.ownerName" class="owner-name">拥有者: {{ kb.ownerName }}</span>
               </div>
               <div v-if="kb.description" class="kb-desc">{{ kb.description }}</div>
             </div>
@@ -63,14 +71,14 @@
                 <el-dropdown-item command="open">
                   <el-icon><FolderOpened /></el-icon> 打开
                 </el-dropdown-item>
-                <el-dropdown-item command="edit">
+                <el-dropdown-item command="edit" :disabled="kb.visibility === 1">
                   <el-icon><Edit /></el-icon> 编辑
                 </el-dropdown-item>
-                <el-dropdown-item command="mount">
-                  <el-icon><Link /></el-icon> 挂载到工作空间
-                </el-dropdown-item>
-                <el-dropdown-item command="delete" divided>
+                <el-dropdown-item command="delete" :disabled="kb.visibility === 1" divided>
                   <el-icon><Delete /></el-icon> 删除
+                </el-dropdown-item>
+                <el-dropdown-item command="members" :disabled="kb.visibility === 1" divided>
+                  <el-icon><User /></el-icon> 成员管理
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -100,7 +108,12 @@
               {{ getVisibilityLabel(activeKb.visibility) }}
             </el-tag>
           </div>
-          <el-button @click="activeKbId = null">关闭</el-button>
+          <div>
+            <el-button @click="handleShowMembers(activeKb)">
+              <el-icon><User /></el-icon> 成员管理
+            </el-button>
+            <el-button @click="activeKbId = null">关闭</el-button>
+          </div>
         </div>
       </template>
 
@@ -109,43 +122,63 @@
         <el-descriptions-item label="可见性">
           {{ getVisibilityLabel(activeKb.visibility) }}
         </el-descriptions-item>
+        <el-descriptions-item label="拥有者">
+          {{ activeKb.ownerName || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="创建时间">
           {{ formatDate(activeKb.createdAt) }}
         </el-descriptions-item>
         <el-descriptions-item label="更新时间">
           {{ activeKb.updatedAt ? formatDate(activeKb.updatedAt) : '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="工作空间数量" :span="2">
-          {{ activeKb.workspaceCount }}
+        <el-descriptions-item label="成员数量">
+          {{ activeKb.memberCount || 0 }}
         </el-descriptions-item>
         <el-descriptions-item label="描述" :span="2">
           {{ activeKb.description || '-' }}
         </el-descriptions-item>
       </el-descriptions>
-
-      <!-- Workspaces -->
-      <div v-if="activeKb.workspaces && activeKb.workspaces.length > 0" class="workspaces-section">
-        <h4>挂载的工作空间</h4>
-        <div class="workspace-tags">
-          <el-tag
-            v-for="ws in activeKb.workspaces"
-            :key="ws.id"
-            closable
-            @close="handleUnmount(ws.id)"
-          >
-            {{ ws.aliasName || ws.name }}
-          </el-tag>
-        </div>
-      </div>
     </el-card>
 
     <el-empty v-else description="请选择或创建知识库" :image-size="200" />
 
     <!-- Create KB Dialog -->
     <el-dialog v-model="showCreateDialog" title="创建知识库" width="500px">
+      <el-alert
+        title="知识库类型说明"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 20px"
+      >
+        <template #default>
+          <div style="font-size: 12px">
+            <div><strong>私有</strong>：个人知识库，仅自己可见，系统只能有一个</div>
+            <div><strong>内部</strong>：团队共享，成员可见</div>
+            <div><strong>公开</strong>：所有人可见</div>
+          </div>
+        </template>
+      </el-alert>
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="100px">
+        <el-form-item label="类型" prop="visibility">
+          <el-radio-group v-model="createForm.visibility">
+            <el-radio :label="1" :disabled="hasPrivateKnowledgeBase">
+              私有（个人知识库）
+            </el-radio>
+            <el-radio :label="2">内部（团队共享）</el-radio>
+            <el-radio :label="3">公开（所有人可见）</el-radio>
+          </el-radio-group>
+          <div v-if="hasPrivateKnowledgeBase && createForm.visibility === 1" class="form-tip">
+            您已拥有个人知识库，无法再创建
+          </div>
+        </el-form-item>
         <el-form-item label="名称" prop="name">
-          <el-input v-model="createForm.name" placeholder="请输入知识库名称" maxlength="128" show-word-limit />
+          <el-input
+            v-model="createForm.name"
+            :placeholder="createForm.visibility === 1 ? '个人知识库' : '请输入知识库名称'"
+            maxlength="128"
+            show-word-limit
+          />
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input
@@ -156,13 +189,6 @@
             maxlength="1000"
             show-word-limit
           />
-        </el-form-item>
-        <el-form-item label="可见性" prop="visibility">
-          <el-radio-group v-model="createForm.visibility">
-            <el-radio :label="1">私有</el-radio>
-            <el-radio :label="2">内部</el-radio>
-            <el-radio :label="3">公开</el-radio>
-          </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -191,10 +217,10 @@
         </el-form-item>
         <el-form-item label="可见性" prop="visibility">
           <el-radio-group v-model="editForm.visibility">
-            <el-radio :label="1">私有</el-radio>
-            <el-radio :label="2">内部</el-radio>
-            <el-radio :label="3">公开</el-radio>
+            <el-radio :label="2">内部（团队共享）</el-radio>
+            <el-radio :label="3">公开（所有人可见）</el-radio>
           </el-radio-group>
+          <div class="form-tip">共享知识库不支持修改为私有</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -205,32 +231,62 @@
       </template>
     </el-dialog>
 
-    <!-- Mount Dialog -->
-    <el-dialog v-model="showMountDialog" title="挂载到工作空间" width="500px">
-      <el-form ref="mountFormRef" :model="mountForm" :rules="mountRules" label-width="100px">
-        <el-form-item label="工作空间" prop="workspaceId">
-          <el-select v-model="mountForm.workspaceId" placeholder="请选择工作空间" style="width: 100%">
-            <el-option
-              v-for="ws in availableWorkspaces"
-              :key="ws.id"
-              :label="ws.name"
-              :value="ws.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="别名" prop="aliasName">
-          <el-input v-model="mountForm.aliasName" placeholder="可选，在此工作空间中显示的别名" />
-        </el-form-item>
-        <el-form-item label="排序" prop="sortOrder">
-          <el-input-number v-model="mountForm.sortOrder" :min="0" :max="9999" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showMountDialog = false">取消</el-button>
-        <el-button type="primary" :loading="mountLoading" @click="handleMount">
-          挂载
+    <!-- Members Dialog -->
+    <el-dialog v-model="showMembersDialog" :title="`成员管理 - ${currentKb?.name || ''}`" width="700px">
+      <div class="members-header">
+        <el-input
+          v-model="memberForm.userId"
+          placeholder="输入用户ID"
+          clearable
+          style="width: 300px"
+        >
+          <template #prefix>
+            <el-icon><User /></el-icon>
+          </template>
+        </el-input>
+        <el-select v-model="memberForm.role" placeholder="选择角色" style="width: 150px; margin-left: 10px">
+          <el-option :value="1" label="管理员" />
+          <el-option :value="2" label="编辑" />
+          <el-option :value="3" label="查看者" />
+        </el-select>
+        <el-button type="primary" :loading="addingMember" @click="handleAddMember">
+          添加成员
         </el-button>
-      </template>
+      </div>
+
+      <el-table v-loading="loadingMembers" :data="members" stripe max-height="400">
+        <el-table-column prop="userId" label="用户ID" width="200" />
+        <el-table-column prop="userName" label="用户名" width="150" />
+        <el-table-column prop="role" label="角色" width="150">
+          <template #default="{ row }">
+            <el-select
+              v-model="row.role"
+              size="small"
+              @change="handleUpdateMemberRole(row)"
+            >
+              <el-option :value="1" label="管理员" />
+              <el-option :value="2" label="编辑" />
+              <el-option :value="3" label="查看者" />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="加入时间" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.createdAt) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-button
+              link
+              type="danger"
+              @click="handleRemoveMember(row)"
+            >
+              移除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </el-dialog>
   </div>
 </template>
@@ -247,8 +303,9 @@ import {
   MoreFilled,
   Edit,
   Delete,
-  Link,
-  Search
+  Search,
+  User,
+  Collection
 } from '@element-plus/icons-vue'
 import {
   getKnowledgeBases,
@@ -256,22 +313,25 @@ import {
   createKnowledgeBase,
   updateKnowledgeBase,
   deleteKnowledgeBase,
-  mountKnowledgeBase,
-  unmountKnowledgeBase
+  getKnowledgeBaseMembers,
+  addKnowledgeBaseMember,
+  updateKnowledgeBaseMember,
+  removeKnowledgeBaseMember
 } from '../api/knowledge'
-import { getWorkspaces } from '../api/workspace'
-import type { KnowledgeBase, Workspace, Visibility } from '../types'
+import type { KnowledgeBase, KnowledgeBaseMember, Visibility, KnowledgeBaseMemberRole } from '../types'
 
 const router = useRouter()
 
 const loading = ref(false)
 const createLoading = ref(false)
 const editLoading = ref(false)
-const mountLoading = ref(false)
+const loadingMembers = ref(false)
+const addingMember = ref(false)
 
 const knowledgeBases = ref<KnowledgeBase[]>([])
-const availableWorkspaces = ref<Workspace[]>([])
+const members = ref<KnowledgeBaseMember[]>([])
 const activeKbId = ref<string | null>(null)
+const currentKb = ref<KnowledgeBase | null>(null)
 
 const searchKeyword = ref('')
 const visibilityFilter = ref<number | null>(null)
@@ -282,34 +342,35 @@ const totalCount = ref(0)
 
 const showCreateDialog = ref(false)
 const showEditDialog = ref(false)
-const showMountDialog = ref(false)
+const showMembersDialog = ref(false)
 
 const createFormRef = ref<FormInstance>()
 const editFormRef = ref<FormInstance>()
-const mountFormRef = ref<FormInstance>()
 
 const createForm = reactive({
   name: '',
   description: '',
-  visibility: 2 as Visibility
+  visibility: 1 as Visibility
 })
 
 const editForm = reactive({
   name: '',
   description: '',
-  visibility: 2 as Visibility
+  visibility: 1 as Visibility
 })
 
-const mountForm = reactive({
-  workspaceId: null as string | null,
-  aliasName: '',
-  sortOrder: 0
+const memberForm = reactive({
+  userId: '',
+  role: 3 as KnowledgeBaseMemberRole
 })
-
-const currentKb = ref<KnowledgeBase | null>(null)
 
 const activeKb = computed(() => {
   return knowledgeBases.value.find(kb => kb.id === activeKbId.value) || null
+})
+
+// 是否已有私有知识库
+const hasPrivateKnowledgeBase = computed(() => {
+  return knowledgeBases.value.some(kb => kb.visibility === 1)
 })
 
 const createRules: FormRules = {
@@ -324,10 +385,6 @@ const editRules: FormRules = {
     { required: true, message: '请输入知识库名称', trigger: 'blur' },
     { max: 128, message: '名称长度不能超过128个字符', trigger: 'blur' }
   ]
-}
-
-const mountRules: FormRules = {
-  workspaceId: [{ required: true, message: '请选择工作空间', trigger: 'change' }]
 }
 
 async function loadKnowledgeBases() {
@@ -348,12 +405,14 @@ async function loadKnowledgeBases() {
   }
 }
 
-async function loadWorkspaces() {
+async function loadMembers(knowledgeBaseId: string) {
+  loadingMembers.value = true
   try {
-    const { items } = await getWorkspaces({ pageSize: 100 })
-    availableWorkspaces.value = items
+    members.value = await getKnowledgeBaseMembers(knowledgeBaseId)
   } catch (error) {
-    console.error('Failed to load workspaces:', error)
+    console.error('Failed to load members:', error)
+  } finally {
+    loadingMembers.value = false
   }
 }
 
@@ -369,7 +428,7 @@ async function handleSelectKb(id: string) {
   }
 
   activeKbId.value = id
-  if (!activeKb.value?.workspaces) {
+  if (!activeKb.value?.memberCount) {
     try {
       const kb = await getKnowledgeBase(id)
       const index = knowledgeBases.value.findIndex(k => k.id === id)
@@ -387,9 +446,19 @@ async function handleCreate() {
 
   await createFormRef.value.validate(async (valid) => {
     if (valid) {
+      // 检查是否创建私有知识库
+      if (createForm.visibility === 1) {
+        // 检查是否已存在私有知识库
+        const hasPrivateKb = knowledgeBases.value.some(kb => kb.visibility === 1)
+        if (hasPrivateKb) {
+          ElMessage.warning('个人知识库只能有一个，如需修改请编辑现有的个人知识库')
+          return
+        }
+      }
+
       createLoading.value = true
       try {
-        const kb = await createKnowledgeBase({
+        await createKnowledgeBase({
           name: createForm.name,
           description: createForm.description || undefined,
           visibility: createForm.visibility
@@ -401,7 +470,7 @@ async function handleCreate() {
         // Reset form
         createForm.name = ''
         createForm.description = ''
-        createForm.visibility = 2
+        createForm.visibility = 2 // 默认为内部（共享）
       } catch (error: any) {
         ElMessage.error(error.response?.data?.message || '创建失败')
         console.error('Failed to create knowledge base:', error)
@@ -445,61 +514,78 @@ async function handleEdit() {
   })
 }
 
-async function handleMount() {
-  if (!mountFormRef.value || !currentKb.value) return
-
-  await mountFormRef.value.validate(async (valid) => {
-    if (valid) {
-      mountLoading.value = true
-      try {
-        await mountKnowledgeBase(currentKb.value.id, {
-          workspaceId: mountForm.workspaceId!,
-          aliasName: mountForm.aliasName || undefined,
-          sortOrder: mountForm.sortOrder
-        })
-        await loadKnowledgeBases()
-        // Reload detail
-        const kb = await getKnowledgeBase(currentKb.value.id)
-        const index = knowledgeBases.value.findIndex(k => k.id === currentKb.value!.id)
-        if (index !== -1) {
-          knowledgeBases.value[index] = kb
-        }
-        ElMessage.success('挂载成功')
-        showMountDialog.value = false
-      } catch (error: any) {
-        ElMessage.error(error.response?.data?.message || '挂载失败')
-        console.error('Failed to mount knowledge base:', error)
-      } finally {
-        mountLoading.value = false
-      }
-    }
-  })
+async function handleShowMembers(kb: KnowledgeBase) {
+  currentKb.value = kb
+  showMembersDialog.value = true
+  await loadMembers(kb.id)
 }
 
-async function handleUnmount(workspaceId: string) {
+async function handleAddMember() {
+  if (!memberForm.userId) {
+    ElMessage.warning('请输入用户ID')
+    return
+  }
   if (!currentKb.value) return
 
-  ElMessageBox.confirm('确定要从此工作空间卸载该知识库吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  })
-    .then(async () => {
-      try {
-        await unmountKnowledgeBase(currentKb.value!.id, workspaceId)
-        await loadKnowledgeBases()
-        const kb = await getKnowledgeBase(currentKb.value!.id)
-        const index = knowledgeBases.value.findIndex(k => k.id === currentKb.value!.id)
-        if (index !== -1) {
-          knowledgeBases.value[index] = kb
-        }
-        ElMessage.success('卸载成功')
-      } catch (error: any) {
-        ElMessage.error(error.response?.data?.message || '卸载失败')
-        console.error('Failed to unmount knowledge base:', error)
-      }
+  addingMember.value = true
+  try {
+    await addKnowledgeBaseMember(currentKb.value.id, {
+      userId: memberForm.userId,
+      role: memberForm.role
     })
-    .catch(() => {})
+    ElMessage.success('添加成功')
+    memberForm.userId = ''
+    memberForm.role = 3
+    await loadMembers(currentKb.value.id)
+    // 刷新列表以更新成员数量
+    await loadKnowledgeBases()
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '添加成员失败')
+  } finally {
+    addingMember.value = false
+  }
+}
+
+async function handleUpdateMemberRole(member: KnowledgeBaseMember) {
+  if (!currentKb.value) return
+
+  try {
+    await updateKnowledgeBaseMember(currentKb.value.id, member.userId, {
+      role: member.role
+    })
+    ElMessage.success('角色更新成功')
+    await loadMembers(currentKb.value.id)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '更新角色失败')
+    // 失败时恢复原角色
+    await loadMembers(currentKb.value.id)
+  }
+}
+
+async function handleRemoveMember(member: KnowledgeBaseMember) {
+  if (!currentKb.value) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要移除成员"${member.userName || member.userId}"吗？`,
+      '移除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确定',
+        cancelButtonText: '取消'
+      }
+    )
+
+    await removeKnowledgeBaseMember(currentKb.value.id, member.userId)
+    ElMessage.success('移除成功')
+    await loadMembers(currentKb.value.id)
+    // 刷新列表以更新成员数量
+    await loadKnowledgeBases()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.response?.data?.message || '移除成员失败')
+    }
+  }
 }
 
 async function handleKbCommand(command: string, kb: KnowledgeBase) {
@@ -507,19 +593,26 @@ async function handleKbCommand(command: string, kb: KnowledgeBase) {
     // 跳转到知识库详情页
     router.push(`/knowledge/${kb.id}`)
   } else if (command === 'edit') {
+    if (kb.visibility === 1) {
+      ElMessage.warning('个人知识库不能编辑')
+      return
+    }
     currentKb.value = kb
     editForm.name = kb.name
     editForm.description = kb.description || ''
     editForm.visibility = kb.visibility
     showEditDialog.value = true
-  } else if (command === 'mount') {
-    currentKb.value = kb
-    await loadWorkspaces()
-    mountForm.workspaceId = null
-    mountForm.aliasName = ''
-    mountForm.sortOrder = 0
-    showMountDialog.value = true
+  } else if (command === 'members') {
+    if (kb.visibility === 1) {
+      ElMessage.warning('个人知识库无需管理成员')
+      return
+    }
+    await handleShowMembers(kb)
   } else if (command === 'delete') {
+    if (kb.visibility === 1) {
+      ElMessage.warning('个人知识库不能删除')
+      return
+    }
     ElMessageBox.confirm(`确定要删除知识库 "${kb.name}" 吗？`, '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
@@ -558,6 +651,15 @@ function getVisibilityType(visibility: Visibility): 'success' | 'info' | 'warnin
     3: 'success'
   }
   return types[visibility]
+}
+
+function getMemberRoleLabel(role: number): string {
+  const labels: Record<number, string> = {
+    1: '管理员',
+    2: '编辑',
+    3: '查看者'
+  }
+  return labels[role] || '未知'
 }
 
 function formatDate(dateStr: string): string {
@@ -668,8 +770,10 @@ onMounted(() => {
         align-items: center;
         gap: 8px;
         margin-bottom: 4px;
+        flex-wrap: wrap;
 
-        .workspace-count {
+        .member-count,
+        .owner-name {
           font-size: 12px;
           color: #909399;
         }
@@ -686,20 +790,20 @@ onMounted(() => {
   }
 }
 
-.workspaces-section {
-  margin-top: 20px;
+.members-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
 
-  h4 {
-    margin: 0 0 12px 0;
-    font-size: 14px;
-    color: #606266;
-  }
+.ml-1 {
+  margin-left: 4px;
+}
 
-  .workspace-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
+.form-tip {
+  font-size: 12px;
+  color: #f56c6c;
+  margin-top: 4px;
 }
 
 .pagination {
@@ -725,6 +829,12 @@ onMounted(() => {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+
+    & > div:not(:first-child) {
+      width: 100%;
+      display: flex;
+      gap: 8px;
+    }
   }
 }
 </style>
