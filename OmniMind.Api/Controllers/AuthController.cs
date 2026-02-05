@@ -114,19 +114,20 @@ namespace App.Controllers
             }
 
             // 获取可用的租户列表
-            var tenants = await dbContext.Tenants
-                .Where(t => t.IsEnabled)
-                .OrderBy(t => t.Id)
-                .Select(t => new
-                {
-                    t.Id,
-                    t.Name,
-                    t.Code,
-                    t.Description
-                })
-                .ToListAsync();
+            //var tenants = await dbContext.Tenants
+            //    .Where(t => t.IsEnabled)
+            //    .OrderBy(t => t.Id)
+            //    .Select(t => new
+            //    {
+            //        t.Id,
+            //        t.Name,
+            //        t.Code,
+            //        t.Description
+            //    })
+            //    .ToListAsync();
 
-            return Ok(new { tenants });
+            //return Ok(new { tenants });
+            return Ok();
         }
 
         /// <summary>
@@ -138,18 +139,17 @@ namespace App.Controllers
         public async Task<IActionResult> PhoneSignIn([FromBody] PhoneSignInRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.PhoneNumber) ||
-                string.IsNullOrWhiteSpace(request.VerificationCode) ||
-              string.IsNullOrEmpty(request.TenantId))
+                string.IsNullOrWhiteSpace(request.VerificationCode))
             {
-                return BadRequest(new { message = "手机号、验证码和租户ID不能为空" });
+                return BadRequest(new { message = "手机号、验证码不能为空" });
             }
 
             // 验证租户是否存在
-            var tenant = await dbContext.Tenants.FindAsync(request.TenantId);
-            if (tenant == null || !tenant.IsEnabled)
-            {
-                return BadRequest(new { message = "租户不存在或已禁用" });
-            }
+            //var tenant = await dbContext.Tenants.FindAsync(request.TenantId);
+            //if (tenant == null || !tenant.IsEnabled)
+            //{
+            //    return BadRequest(new { message = "租户不存在或已禁用" });
+            //}
 
             var user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
             if (user == null)
@@ -211,7 +211,8 @@ namespace App.Controllers
                     Description = "个人知识库",
                     Visibility = Visibility.Private,
                     OwnerUserId = user.Id,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    Members = new List<KnowledgeBaseMember>()
                 };
                 dbContext.KnowledgeBases.Add(knowledgeBase);
                 await dbContext.SaveChangesAsync();
@@ -236,17 +237,17 @@ namespace App.Controllers
                     {
                         user.Id,
                         user.NickName,
-                        TenantId = tenant.Id,
+                        UserName = user.UserName,
                         user.PhoneNumber,
                         user.DateCreated,
                         user.LastSignDate
-                    },
-                    tenant = new
-                    {
-                        tenant.Id,
-                        tenant.Name,
-                        tenant.Code
                     }
+                    //tenant = new
+                    //{
+                    //    tenant.Id,
+                    //    tenant.Name,
+                    //    tenant.Code
+                    //}
                 });
             }
 
@@ -507,10 +508,10 @@ namespace App.Controllers
         /// </summary>
         public string VerificationCode { get; init; } = string.Empty;
 
-        /// <summary>
-        /// 租户ID
-        /// </summary>
-        public required string TenantId { get; init; }
+        ///// <summary>
+        ///// 租户ID
+        ///// </summary>
+        //public required string TenantId { get; init; }
 
         /// <summary>
         /// 记住我

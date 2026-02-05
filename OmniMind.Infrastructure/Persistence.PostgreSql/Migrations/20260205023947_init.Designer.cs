@@ -12,8 +12,8 @@ using OmniMind.Persistence.PostgreSql;
 namespace OmniMind.Persistence.PostgreSql.Migrations
 {
     [DbContext(typeof(OmniMindDbContext))]
-    [Migration("20260204174922_addkbinvitetable")]
-    partial class addkbinvitetable
+    [Migration("20260205023947_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -404,6 +404,11 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("accepted_at");
 
+                    b.Property<string>("ApplicationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("application_reason");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -460,6 +465,8 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     b.HasIndex("Code");
 
                     b.HasIndex("Email");
+
+                    b.HasIndex("InviteeUserId");
 
                     b.HasIndex("InviterUserId");
 
@@ -674,6 +681,115 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("tenants");
+                });
+
+            modelBuilder.Entity("OmniMind.Entities.TokenUsageLog", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DocumentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("error_code");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("ExtraJson")
+                        .HasColumnType("text")
+                        .HasColumnName("extra_json");
+
+                    b.Property<int>("InputTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("input_tokens");
+
+                    b.Property<bool>("IsSuccess")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_success");
+
+                    b.Property<string>("KnowledgeBaseId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("knowledge_base_id");
+
+                    b.Property<string>("ModelName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("model_name");
+
+                    b.Property<int>("OutputTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("output_tokens");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("platform");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("remarks");
+
+                    b.Property<string>("RequestId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("SessionId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("TenantId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<int>("TotalTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_tokens");
+
+                    b.Property<int>("UsageType")
+                        .HasColumnType("integer")
+                        .HasColumnName("usage_type");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Platform");
+
+                    b.HasIndex("UsageType");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.HasIndex("UserId", "Platform", "CreatedAt");
+
+                    b.ToTable("token_usage_logs");
                 });
 
             modelBuilder.Entity("OmniMind.Entities.User", b =>
@@ -970,6 +1086,10 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
 
             modelBuilder.Entity("OmniMind.Entities.KnowledgeBaseInvitation", b =>
                 {
+                    b.HasOne("OmniMind.Entities.User", "InviteeUser")
+                        .WithMany()
+                        .HasForeignKey("InviteeUserId");
+
                     b.HasOne("OmniMind.Entities.User", "InviterUser")
                         .WithMany()
                         .HasForeignKey("InviterUserId")
@@ -981,6 +1101,8 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         .HasForeignKey("KnowledgeBaseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("InviteeUser");
 
                     b.Navigation("InviterUser");
 

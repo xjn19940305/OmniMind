@@ -1,12 +1,14 @@
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.AI;
 using OmniMind.Abstractions.Ingestion;
 using OmniMind.Abstractions.SignalR;
 using OmniMind.Abstractions.Storage;
 using OmniMind.Entities;
 using OmniMind.Enums;
+using OmniMind.Ingestion;
 using OmniMind.Persistence.PostgreSql;
 using System.Diagnostics;
 
@@ -229,7 +231,14 @@ namespace OmniMind.Messaging.RabbitMQ
                 {
                     // 批量向量化
                     var chunkTexts = allChunks.Select(c => c.Content).ToList();
-                    var embeddings = await embeddingGenerator.GenerateAsync(chunkTexts);
+                    GeneratedEmbeddings<Embedding<float>> embeddings;
+
+                    using (AiCallContext.BeginScope(document.CreatedByUserId)
+                        .WithDocument(document.Id)
+                        .WithKnowledgeBase(document?.KnowledgeBaseId))
+                    {
+                        embeddings = await embeddingGenerator.GenerateAsync(chunkTexts);
+                    }
 
                     if (embeddings.Count != allChunks.Count)
                     {

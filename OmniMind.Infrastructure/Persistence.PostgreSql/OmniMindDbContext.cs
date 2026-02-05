@@ -16,6 +16,9 @@ namespace OmniMind.Persistence.PostgreSql
         public DbSet<DocumentVersion> DocumentVersions { get; set; }
         public DbSet<Chunk> Chunks { get; set; }
         public DbSet<IngestionTask> IngestionTasks { get; set; }
+        public DbSet<TokenUsageLog> TokenUsageLogs { get; set; }
+        public DbSet<UserProfile> UserProfiles { get; set; }
+        public DbSet<PushDevice> PushDevices { get; set; }
 
         public OmniMindDbContext(DbContextOptions options) : base(options)
         {
@@ -92,6 +95,25 @@ namespace OmniMind.Persistence.PostgreSql
                 .WithMany(d => d.IngestionTasks)
                 .HasForeignKey(t => t.DocumentId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // User - UserProfile 一对一关系
+            modelBuilder.Entity<UserProfile>()
+                .HasOne(p => p.User)
+                .WithOne(u => u.Profile)
+                .HasForeignKey<UserProfile>(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // User - PushDevice 一对多关系
+            modelBuilder.Entity<PushDevice>()
+                .HasOne(d => d.User)
+                .WithMany(u => u.PushDevices)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // PushDevice - ClientId 索引（推送时常用）
+            modelBuilder.Entity<PushDevice>()
+                .HasIndex(d => d.ClientId)
+                .IsUnique();
         }
     }
 }

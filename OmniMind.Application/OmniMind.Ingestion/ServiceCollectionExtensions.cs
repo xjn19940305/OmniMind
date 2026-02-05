@@ -45,7 +45,7 @@ namespace OmniMind.Ingestion
             {
                 var httpClient = new System.Net.Http.HttpClient();
                 var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AlibabaCloudEmbeddingGenerator>>();
-                return new AlibabaCloudEmbeddingGenerator(httpClient, options, logger);
+                return new AlibabaCloudEmbeddingGenerator(httpClient, options, logger, sp);
             });
             return services;
         }
@@ -112,7 +112,7 @@ namespace OmniMind.Ingestion
             {
                 var loggerFactory = NullLoggerFactory.Instance;
                 var logger = loggerFactory.CreateLogger<AlibabaCloudChatClient>();
-                return CreateAlibabaCloudClient(options.ApiKey, options.Model, options.Endpoint);
+                return CreateAlibabaCloudClient(options.ApiKey, services.BuildServiceProvider(), options.Model, options.Endpoint);
             });
             return services;
         }
@@ -121,6 +121,7 @@ namespace OmniMind.Ingestion
         /// </summary>
         public static IChatClient CreateAlibabaCloudClient(
             string apiKey,
+            IServiceProvider serviceProvider,
             string? model = null,
             string? endpoint = null,
             bool useProxy = true)
@@ -168,7 +169,7 @@ namespace OmniMind.Ingestion
             var loggerFactory = NullLoggerFactory.Instance;
             var logger = loggerFactory.CreateLogger<AlibabaCloudChatClient>();
 
-            return new AlibabaCloudChatClient(httpClient, options, logger);
+            return new AlibabaCloudChatClient(httpClient, options, serviceProvider, logger);
         }
     }
 }
