@@ -491,9 +491,7 @@ namespace App.Controllers
                 UpdatedAt = kb.UpdatedAt,
                 OwnerUserId = kb.OwnerUserId,
                 OwnerName = kb.Owner?.NickName ?? kb.Owner?.UserName,
-                MemberCount = memberCount,
-                WorkspaceCount = 0,
-                Workspaces = null
+                MemberCount = memberCount
             };
         }
 
@@ -518,8 +516,6 @@ namespace App.Controllers
                     Role = m.Role,
                     JoinedAt = m.CreatedAt
                 }).ToList() ?? new List<MemberRef>(),
-                WorkspaceCount = 0,
-                Workspaces = null
             };
         }
 

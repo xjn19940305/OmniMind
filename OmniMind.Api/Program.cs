@@ -27,6 +27,7 @@ using OmniMind.Vector.Qdrant;
 using OmniMind.Messaging.RabbitMQ;
 using OmniMind.Ingestion;
 using RabbitMQ.Client;
+using OmniMind.Application.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
@@ -347,6 +348,7 @@ builder.Services.AddSignalRServices(builder.Configuration);
 // 注册后台服务（文档处理消费者）
 builder.Services.AddHostedService<DocumentProcessingWorker>();
 
+builder.Services.AddScoped<ITokenUsageService, TokenUsageService>();
 
 // HttpClient & HealthChecks
 builder.Services.AddHttpClient();

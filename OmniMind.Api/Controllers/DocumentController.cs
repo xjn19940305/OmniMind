@@ -131,7 +131,8 @@ namespace App.Controllers
                 Language = "zh-CN", // 默认中文，后续可以自动检测
                 Status = DocumentStatus.Uploaded,
                 CreatedByUserId = currentUserId,
-                CreatedAt = DateTimeOffset.UtcNow
+                CreatedAt = DateTimeOffset.UtcNow,
+                Content = request?.Content
             };
 
             dbContext.Documents.Add(document);

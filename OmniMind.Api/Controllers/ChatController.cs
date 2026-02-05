@@ -1,13 +1,14 @@
-using OmniMind.Api.Swaggers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using OmniMind.Abstractions.SignalR;
 using OmniMind.Abstractions.Storage;
+using OmniMind.Api.Swaggers;
 using OmniMind.Contracts.Chat;
 using OmniMind.Contracts.Common;
 using OmniMind.Entities;
 using OmniMind.Enums;
+using OmniMind.Ingestion;
 using OmniMind.Messages;
 using OmniMind.Messaging.Abstractions;
 using OmniMind.Persistence.PostgreSql;
@@ -316,22 +317,23 @@ namespace App.Controllers
                 var options = BuildChatOptions(request);
                 options.ModelId = request.Model;
                 var sb = new System.Text.StringBuilder();
-
-                await foreach (var update in chatClient.CompleteStreamingAsync(aiMessages, options))
+                using (AiCallContext.BeginScope(userId, sessionId: conversationId))
                 {
-                    if (!string.IsNullOrEmpty(update.Text))
+                    await foreach (var update in chatClient.CompleteStreamingAsync(aiMessages, options))
                     {
-                        sb.Append(update.Text);
-                        // 清理多余的空行后再发送
-                        var cleanedContent = CleanExtraNewlines(sb.ToString());
-                        await SendStreamingChunkAsync(userId, conversationId, messageId, cleanedContent, isComplete: false);
+                        if (!string.IsNullOrEmpty(update.Text))
+                        {
+                            sb.Append(update.Text);
+                            // 清理多余的空行后再发送
+                            var cleanedContent = CleanExtraNewlines(sb.ToString());
+                            await SendStreamingChunkAsync(userId, conversationId, messageId, cleanedContent, isComplete: false);
+                        }
                     }
+                    // 发送完整内容
+                    var finalContent = CleanExtraNewlines(sb.ToString());
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
+                    logger.LogInformation("[Chat] 简单聊天完成: MessageId={MessageId}", messageId);
                 }
-
-                // 发送完整内容
-                var finalContent = CleanExtraNewlines(sb.ToString());
-                await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
-                logger.LogInformation("[Chat] 简单聊天完成: MessageId={MessageId}", messageId);
             }
             catch (Exception ex)
             {

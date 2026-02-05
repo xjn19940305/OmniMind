@@ -1,14 +1,44 @@
 using DocumentFormat.OpenXml.Vml.Wordprocessing;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OmniMind.Application.Services;
+using OmniMind.Entities;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace OmniMind.Ingestion
 {
+    /// <summary>
+    /// 阿里云 DashScope TOKEN 使用情况
+    /// </summary>
+    public class AlibabaCloudChatUsageInfo
+    {
+        /// <summary>
+        /// 输入 TOKEN 数
+        /// </summary>
+        public int InputTokens { get; set; }
+
+        /// <summary>
+        /// 输出 TOKEN 数
+        /// </summary>
+        public int OutputTokens { get; set; }
+
+        /// <summary>
+        /// 总 TOKEN 数
+        /// </summary>
+        public int TotalTokens { get; set; }
+
+        /// <summary>
+        /// 请求ID（用于追溯）
+        /// </summary>
+        public string? RequestId { get; set; }
+    }
+
     /// <summary>
     /// 阿里云百练 DashScope 聊天服务
     /// 文档: https://help.aliyun.com/zh/dashscope/developer-reference/compatibility-of-openai-with-dashscope
@@ -18,15 +48,18 @@ namespace OmniMind.Ingestion
     {
         private readonly HttpClient httpClient;
         private readonly AlibabaCloudChatOptions options;
+        private readonly IServiceProvider serviceProvider;
         private readonly ILogger<AlibabaCloudChatClient> logger;
 
         public AlibabaCloudChatClient(
             HttpClient httpClient,
             AlibabaCloudChatOptions options,
+            IServiceProvider serviceProvider,
             ILogger<AlibabaCloudChatClient> logger)
         {
             this.httpClient = httpClient;
             this.options = options;
+            this.serviceProvider = serviceProvider;
             this.logger = logger;
             // 使用配置的模型
             var modelId = this.options.Model ?? "qwen-max";
@@ -38,7 +71,7 @@ namespace OmniMind.Ingestion
         /// 获取元数据
         /// </summary>
         public ChatClientMetadata Metadata { get; }
-
+        public AlibabaCloudChatUsageInfo LastUsageInfo { get; private set; }
         /// <summary>
         /// 获取聊天响应（非流式）
         /// </summary>
@@ -72,7 +105,7 @@ namespace OmniMind.Ingestion
             }
 
             // 解析响应
-            return ParseChatCompletion(responseBody);
+            return await ParseChatCompletionAsync(responseBody);
         }
 
         /// <summary>
@@ -120,6 +153,7 @@ namespace OmniMind.Ingestion
 
             var sb = new StringBuilder();
             var buffer = new char[1024];
+            var list = new List<AlibabaCloudChatUsageInfo>();
 
             while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
             {
@@ -156,10 +190,108 @@ namespace OmniMind.Ingestion
                     var data = string.Join("\n", dataLines);
                     if (string.IsNullOrWhiteSpace(data)) continue;
 
-                    if (data == "[DONE]") yield break;
-
-                    yield return ParseStreamUpdate(data);
+                    if (data.Contains("chat.completion.chunk"))
+                    {
+                        // 流结束，usage 已在最后的事件中记录4
+                        // 检查此事件是否包含 usage 信息（通常在最后一个 chunk 中）
+                        await ExtractUsageFromStreamEvent(data, options?.ModelId!);
+                    }
+                    var update = ParseStreamUpdate(data);
+                    yield return update;
                 }
+            }
+
+            // 流结束后，设置 LastUsageInfo（取最后一个或累加所有）
+            if (list.Count > 0)
+            {
+                // 通常最后一个 chunk 包含完整的 usage 信息
+                LastUsageInfo = list[^1];
+            }
+        }
+
+        /// <summary>
+        /// 从流式事件中提取 usage 信息并记录
+        /// </summary>
+        private async Task ExtractUsageFromStreamEvent(string data, string model)
+        {
+            try
+            {
+                using var jsonDoc = JsonDocument.Parse(data);
+                var root = jsonDoc.RootElement;
+
+                // 检查是否有 usage 字段（不是每个 chunk 都有）
+                if (root.TryGetProperty("usage", out var usageProp) && usageProp.ValueKind == JsonValueKind.Object)
+                {
+                    // 容错检查：确保各个字段存在
+                    int inputTokens = 0;
+                    int outputTokens = 0;
+                    int totalTokens = 0;
+
+                    if (usageProp.TryGetProperty("prompt_tokens", out var promptTokens) && promptTokens.ValueKind == JsonValueKind.Number)
+                    {
+                        inputTokens = promptTokens.GetInt32();
+                    }
+
+                    if (usageProp.TryGetProperty("completion_tokens", out var completionTokens) && completionTokens.ValueKind == JsonValueKind.Number)
+                    {
+                        outputTokens = completionTokens.GetInt32();
+                    }
+
+                    if (usageProp.TryGetProperty("total_tokens", out var totalTokensProp) && totalTokensProp.ValueKind == JsonValueKind.Number)
+                    {
+                        totalTokens = totalTokensProp.GetInt32();
+                    }
+
+                    // 只有当至少有一个有效值时才记录
+                    if (inputTokens > 0 || outputTokens > 0 || totalTokens > 0)
+                    {
+                        string? requestId = null;
+                        if (root.TryGetProperty("id", out var requestIdProp) && requestIdProp.ValueKind == JsonValueKind.String)
+                        {
+                            requestId = requestIdProp.GetString();
+                        }
+
+                        // 从上下文获取用户信息
+                        var context = AiCallContext.Current;
+                        if (context != null)
+                        {
+                            // 创建作用域获取 Scoped 服务
+                            using var scope = serviceProvider.CreateScope();
+                            var service = scope.ServiceProvider.GetRequiredService<ITokenUsageService>();
+                            await service.LogLLMUsageAsync(
+                                userId: context.UserId,
+                                platform: AiPlatforms.Aliyun,
+                                modelName: model,
+                                inputTokens: inputTokens,
+                                outputTokens: outputTokens,
+                                requestId: requestId,
+                                sessionId: context.SessionId,
+                                knowledgeBaseId: context.KnowledgeBaseId);
+                            logger.LogDebug("[AlibabaCloudChat] 流式 TOKEN 已记录: {InputTokens} 输入, {OutputTokens} 输出, {TotalTokens} 总计",
+                                inputTokens, outputTokens, totalTokens > 0 ? totalTokens : inputTokens + outputTokens);
+                        }
+
+                        // 同时保存到 LastUsageInfo
+                        LastUsageInfo = new AlibabaCloudChatUsageInfo
+                        {
+                            InputTokens = inputTokens,
+                            OutputTokens = outputTokens,
+                            TotalTokens = totalTokens > 0 ? totalTokens : inputTokens + outputTokens,
+                            RequestId = requestId
+                        };
+
+                        logger.LogDebug("[AlibabaCloudChat] 流式 TOKEN 使用: {InputTokens} 输入, {OutputTokens} 输出, {TotalTokens} 总计",
+                            LastUsageInfo.InputTokens, LastUsageInfo.OutputTokens, LastUsageInfo.TotalTokens);
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                logger.LogDebug("[AlibabaCloudChat] 解析 usage 信息失败: {Message}", ex.Message);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "[AlibabaCloudChat] 解析 usage 信息时发生错误");
             }
         }
 
@@ -231,7 +363,11 @@ namespace OmniMind.Ingestion
             {
                 ["model"] = options?.ModelId ?? Metadata.ModelId,
                 ["messages"] = messageList,
-                ["stream"] = stream
+                ["stream"] = stream,
+                ["stream_options"] = new
+                {
+                    include_usage = true
+                }
             };
             if (options?.AdditionalProperties != null)
             {
@@ -255,10 +391,50 @@ namespace OmniMind.Ingestion
         /// <summary>
         /// 解析非流式响应
         /// </summary>
-        private ChatCompletion ParseChatCompletion(string responseBody)
+        private async Task<ChatCompletion> ParseChatCompletionAsync(string responseBody)
         {
             using var jsonDoc = JsonDocument.Parse(responseBody);
             var root = jsonDoc.RootElement;
+
+            // 提取 usage 信息
+            if (root.TryGetProperty("usage", out var usageProp))
+            {
+                LastUsageInfo = new AlibabaCloudChatUsageInfo
+                {
+                    InputTokens = usageProp.GetProperty("prompt_tokens").GetInt32(),
+                    OutputTokens = usageProp.GetProperty("completion_tokens").GetInt32(),
+                    TotalTokens = usageProp.GetProperty("total_tokens").GetInt32()
+                };
+
+                // 尝试获取 request_id
+                if (root.TryGetProperty("request_id", out var requestIdProp))
+                {
+                    LastUsageInfo.RequestId = requestIdProp.GetString();
+                }
+
+                logger.LogDebug("[AlibabaCloudChat] TOKEN 使用: {InputTokens} 输入, {OutputTokens} 输出, {TotalTokens} 总计",
+                    LastUsageInfo.InputTokens, LastUsageInfo.OutputTokens, LastUsageInfo.TotalTokens);
+
+                // 记录 TOKEN 使用
+                var context = AiCallContext.Current;
+                if (context != null)
+                {
+                    using var scope = serviceProvider.CreateScope();
+                    var service = scope.ServiceProvider.GetService<ITokenUsageService>();
+                    if (service != null)
+                    {
+                        await service.LogLLMUsageAsync(
+                            userId: context.UserId,
+                            platform: AiPlatforms.Aliyun,
+                            modelName: Metadata.ModelId,
+                            inputTokens: LastUsageInfo.InputTokens,
+                            outputTokens: LastUsageInfo.OutputTokens,
+                            requestId: LastUsageInfo.RequestId,
+                            sessionId: context.SessionId,
+                            knowledgeBaseId: context.KnowledgeBaseId);
+                    }
+                }
+            }
 
             if (root.TryGetProperty("choices", out var choices) &&
                 choices.ValueKind == JsonValueKind.Array &&

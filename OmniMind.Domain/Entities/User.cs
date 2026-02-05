@@ -38,6 +38,21 @@ namespace OmniMind.Entities
         public DateTime? LastSignDate { get; set; }
 
         /// <summary>
+        /// 是否已完善信息
+        /// </summary>
+        public bool IsProfileCompleted { get; set; } = false;
+
+        /// <summary>
+        /// 用户扩展信息
+        /// </summary>
+        public UserProfile? Profile { get; set; }
+
+        /// <summary>
+        /// 推送设备列表
+        /// </summary>
+        public ICollection<PushDevice> PushDevices { get; set; } = new List<PushDevice>();
+
+        /// <summary>
         /// 用户拥有的知识库集合
         /// </summary>
         public ICollection<KnowledgeBase> OwnedKnowledgeBases { get; set; } = new List<KnowledgeBase>();

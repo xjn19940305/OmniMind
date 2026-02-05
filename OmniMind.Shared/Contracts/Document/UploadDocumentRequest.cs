@@ -15,7 +15,7 @@ namespace OmniMind.Contracts.Document
         /// <summary>
         /// 知识库ID
         /// </summary>
-        public string KnowledgeBaseId { get; set; } = string.Empty;
+        public string? KnowledgeBaseId { get; set; } = string.Empty;
 
         /// <summary>
         /// 文件夹ID（可选）
@@ -26,5 +26,9 @@ namespace OmniMind.Contracts.Document
         /// 文档标题（可选，默认使用文件名）
         /// </summary>
         public string? Title { get; set; }
+        /// <summary>
+        /// 笔记内容或者说是文本内容
+        /// </summary>
+        public string? Content { get; set; }
     }
 }

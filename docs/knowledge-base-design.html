@@ -1,0 +1,539 @@
+<!DOCTYPE html><html><head>
+      <title>knowledge-base-design</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      
+      <link rel="stylesheet" href="file:///c:\Users\xjn19\.vscode\extensions\shd101wyy.markdown-preview-enhanced-0.8.20\crossnote\dependencies\katex\katex.min.css">
+      
+      
+      <script type="text/javascript" src="file:///c:\Users\xjn19\.vscode\extensions\shd101wyy.markdown-preview-enhanced-0.8.20\crossnote\dependencies\mermaid\mermaid.min.js" charset="UTF-8"></script>
+      
+      
+      <style>
+      code[class*=language-],pre[class*=language-]{color:#333;background:0 0;font-family:Consolas,"Liberation Mono",Menlo,Courier,monospace;text-align:left;white-space:pre;word-spacing:normal;word-break:normal;word-wrap:normal;line-height:1.4;-moz-tab-size:8;-o-tab-size:8;tab-size:8;-webkit-hyphens:none;-moz-hyphens:none;-ms-hyphens:none;hyphens:none}pre[class*=language-]{padding:.8em;overflow:auto;border-radius:3px;background:#f5f5f5}:not(pre)>code[class*=language-]{padding:.1em;border-radius:.3em;white-space:normal;background:#f5f5f5}.token.blockquote,.token.comment{color:#969896}.token.cdata{color:#183691}.token.doctype,.token.macro.property,.token.punctuation,.token.variable{color:#333}.token.builtin,.token.important,.token.keyword,.token.operator,.token.rule{color:#a71d5d}.token.attr-value,.token.regex,.token.string,.token.url{color:#183691}.token.atrule,.token.boolean,.token.code,.token.command,.token.constant,.token.entity,.token.number,.token.property,.token.symbol{color:#0086b3}.token.prolog,.token.selector,.token.tag{color:#63a35c}.token.attr-name,.token.class,.token.class-name,.token.function,.token.id,.token.namespace,.token.pseudo-class,.token.pseudo-element,.token.url-reference .token.variable{color:#795da3}.token.entity{cursor:help}.token.title,.token.title .token.punctuation{font-weight:700;color:#1d3e81}.token.list{color:#ed6a43}.token.inserted{background-color:#eaffea;color:#55a532}.token.deleted{background-color:#ffecec;color:#bd2c00}.token.bold{font-weight:700}.token.italic{font-style:italic}.language-json .token.property{color:#183691}.language-markup .token.tag .token.punctuation{color:#333}.language-css .token.function,code.language-css{color:#0086b3}.language-yaml .token.atrule{color:#63a35c}code.language-yaml{color:#183691}.language-ruby .token.function{color:#333}.language-markdown .token.url{color:#795da3}.language-makefile .token.symbol{color:#795da3}.language-makefile .token.variable{color:#183691}.language-makefile .token.builtin{color:#0086b3}.language-bash .token.keyword{color:#0086b3}pre[data-line]{position:relative;padding:1em 0 1em 3em}pre[data-line] .line-highlight-wrapper{position:absolute;top:0;left:0;background-color:transparent;display:block;width:100%}pre[data-line] .line-highlight{position:absolute;left:0;right:0;padding:inherit 0;margin-top:1em;background:hsla(24,20%,50%,.08);background:linear-gradient(to right,hsla(24,20%,50%,.1) 70%,hsla(24,20%,50%,0));pointer-events:none;line-height:inherit;white-space:pre}pre[data-line] .line-highlight:before,pre[data-line] .line-highlight[data-end]:after{content:attr(data-start);position:absolute;top:.4em;left:.6em;min-width:1em;padding:0 .5em;background-color:hsla(24,20%,50%,.4);color:#f4f1ef;font:bold 65%/1.5 sans-serif;text-align:center;vertical-align:.3em;border-radius:999px;text-shadow:none;box-shadow:0 1px #fff}pre[data-line] .line-highlight[data-end]:after{content:attr(data-end);top:auto;bottom:.4em}html body{font-family:'Helvetica Neue',Helvetica,'Segoe UI',Arial,freesans,sans-serif;font-size:16px;line-height:1.6;color:#333;background-color:#fff;overflow:initial;box-sizing:border-box;word-wrap:break-word}html body>:first-child{margin-top:0}html body h1,html body h2,html body h3,html body h4,html body h5,html body h6{line-height:1.2;margin-top:1em;margin-bottom:16px;color:#000}html body h1{font-size:2.25em;font-weight:300;padding-bottom:.3em}html body h2{font-size:1.75em;font-weight:400;padding-bottom:.3em}html body h3{font-size:1.5em;font-weight:500}html body h4{font-size:1.25em;font-weight:600}html body h5{font-size:1.1em;font-weight:600}html body h6{font-size:1em;font-weight:600}html body h1,html body h2,html body h3,html body h4,html body h5{font-weight:600}html body h5{font-size:1em}html body h6{color:#5c5c5c}html body strong{color:#000}html body del{color:#5c5c5c}html body a:not([href]){color:inherit;text-decoration:none}html body a{color:#08c;text-decoration:none}html body a:hover{color:#00a3f5;text-decoration:none}html body img{max-width:100%}html body>p{margin-top:0;margin-bottom:16px;word-wrap:break-word}html body>ol,html body>ul{margin-bottom:16px}html body ol,html body ul{padding-left:2em}html body ol.no-list,html body ul.no-list{padding:0;list-style-type:none}html body ol ol,html body ol ul,html body ul ol,html body ul ul{margin-top:0;margin-bottom:0}html body li{margin-bottom:0}html body li.task-list-item{list-style:none}html body li>p{margin-top:0;margin-bottom:0}html body .task-list-item-checkbox{margin:0 .2em .25em -1.8em;vertical-align:middle}html body .task-list-item-checkbox:hover{cursor:pointer}html body blockquote{margin:16px 0;font-size:inherit;padding:0 15px;color:#5c5c5c;background-color:#f0f0f0;border-left:4px solid #d6d6d6}html body blockquote>:first-child{margin-top:0}html body blockquote>:last-child{margin-bottom:0}html body hr{height:4px;margin:32px 0;background-color:#d6d6d6;border:0 none}html body table{margin:10px 0 15px 0;border-collapse:collapse;border-spacing:0;display:block;width:100%;overflow:auto;word-break:normal;word-break:keep-all}html body table th{font-weight:700;color:#000}html body table td,html body table th{border:1px solid #d6d6d6;padding:6px 13px}html body dl{padding:0}html body dl dt{padding:0;margin-top:16px;font-size:1em;font-style:italic;font-weight:700}html body dl dd{padding:0 16px;margin-bottom:16px}html body code{font-family:Menlo,Monaco,Consolas,'Courier New',monospace;font-size:.85em;color:#000;background-color:#f0f0f0;border-radius:3px;padding:.2em 0}html body code::after,html body code::before{letter-spacing:-.2em;content:'\00a0'}html body pre>code{padding:0;margin:0;word-break:normal;white-space:pre;background:0 0;border:0}html body .highlight{margin-bottom:16px}html body .highlight pre,html body pre{padding:1em;overflow:auto;line-height:1.45;border:#d6d6d6;border-radius:3px}html body .highlight pre{margin-bottom:0;word-break:normal}html body pre code,html body pre tt{display:inline;max-width:initial;padding:0;margin:0;overflow:initial;line-height:inherit;word-wrap:normal;background-color:transparent;border:0}html body pre code:after,html body pre code:before,html body pre tt:after,html body pre tt:before{content:normal}html body blockquote,html body dl,html body ol,html body p,html body pre,html body ul{margin-top:0;margin-bottom:16px}html body kbd{color:#000;border:1px solid #d6d6d6;border-bottom:2px solid #c7c7c7;padding:2px 4px;background-color:#f0f0f0;border-radius:3px}@media print{html body{background-color:#fff}html body h1,html body h2,html body h3,html body h4,html body h5,html body h6{color:#000;page-break-after:avoid}html body blockquote{color:#5c5c5c}html body pre{page-break-inside:avoid}html body table{display:table}html body img{display:block;max-width:100%;max-height:100%}html body code,html body pre{word-wrap:break-word;white-space:pre}}.markdown-preview{width:100%;height:100%;box-sizing:border-box}.markdown-preview ul{list-style:disc}.markdown-preview ul ul{list-style:circle}.markdown-preview ul ul ul{list-style:square}.markdown-preview ol{list-style:decimal}.markdown-preview ol ol,.markdown-preview ul ol{list-style-type:lower-roman}.markdown-preview ol ol ol,.markdown-preview ol ul ol,.markdown-preview ul ol ol,.markdown-preview ul ul ol{list-style-type:lower-alpha}.markdown-preview .newpage,.markdown-preview .pagebreak{page-break-before:always}.markdown-preview pre.line-numbers{position:relative;padding-left:3.8em;counter-reset:linenumber}.markdown-preview pre.line-numbers>code{position:relative}.markdown-preview pre.line-numbers .line-numbers-rows{position:absolute;pointer-events:none;top:1em;font-size:100%;left:0;width:3em;letter-spacing:-1px;border-right:1px solid #999;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}.markdown-preview pre.line-numbers .line-numbers-rows>span{pointer-events:none;display:block;counter-increment:linenumber}.markdown-preview pre.line-numbers .line-numbers-rows>span:before{content:counter(linenumber);color:#999;display:block;padding-right:.8em;text-align:right}.markdown-preview .mathjax-exps .MathJax_Display{text-align:center!important}.markdown-preview:not([data-for=preview]) .code-chunk .code-chunk-btn-group{display:none}.markdown-preview:not([data-for=preview]) .code-chunk .status{display:none}.markdown-preview:not([data-for=preview]) .code-chunk .output-div{margin-bottom:16px}.markdown-preview .md-toc{padding:0}.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link{display:inline;padding:.25rem 0}.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link div,.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link p{display:inline}.markdown-preview .md-toc .md-toc-link-wrapper.highlighted .md-toc-link{font-weight:800}.scrollbar-style::-webkit-scrollbar{width:8px}.scrollbar-style::-webkit-scrollbar-track{border-radius:10px;background-color:transparent}.scrollbar-style::-webkit-scrollbar-thumb{border-radius:5px;background-color:rgba(150,150,150,.66);border:4px solid rgba(150,150,150,.66);background-clip:content-box}html body[for=html-export]:not([data-presentation-mode]){position:relative;width:100%;height:100%;top:0;left:0;margin:0;padding:0;overflow:auto}html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{position:relative;top:0;min-height:100vh}@media screen and (min-width:914px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{padding:2em calc(50% - 457px + 2em)}}@media screen and (max-width:914px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{padding:2em}}@media screen and (max-width:450px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{font-size:14px!important;padding:1em}}@media print{html body[for=html-export]:not([data-presentation-mode]) #sidebar-toc-btn{display:none}}html body[for=html-export]:not([data-presentation-mode]) #sidebar-toc-btn{position:fixed;bottom:8px;left:8px;font-size:28px;cursor:pointer;color:inherit;z-index:99;width:32px;text-align:center;opacity:.4}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] #sidebar-toc-btn{opacity:1}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc{position:fixed;top:0;left:0;width:300px;height:100%;padding:32px 0 48px 0;font-size:14px;box-shadow:0 0 4px rgba(150,150,150,.33);box-sizing:border-box;overflow:auto;background-color:inherit}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar{width:8px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar-track{border-radius:10px;background-color:transparent}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar-thumb{border-radius:5px;background-color:rgba(150,150,150,.66);border:4px solid rgba(150,150,150,.66);background-clip:content-box}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc a{text-decoration:none}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc{padding:0 16px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link{display:inline;padding:.25rem 0}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link div,html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link p{display:inline}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper.highlighted .md-toc-link{font-weight:800}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{left:300px;width:calc(100% - 300px);padding:2em calc(50% - 457px - 300px / 2);margin:0;box-sizing:border-box}@media screen and (max-width:1274px){html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{padding:2em}}@media screen and (max-width:450px){html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{width:100%}}html body[for=html-export]:not([data-presentation-mode]):not([html-show-sidebar-toc]) .markdown-preview{left:50%;transform:translateX(-50%)}html body[for=html-export]:not([data-presentation-mode]):not([html-show-sidebar-toc]) .md-sidebar-toc{display:none}
+/* Please visit the URL below for more information: */
+/*   https://shd101wyy.github.io/markdown-preview-enhanced/#/customize-css */
+
+      </style>
+      <!-- The content below will be included at the end of the <head> element. --><script type="text/javascript">
+  document.addEventListener("DOMContentLoaded", function () {
+    // your code here
+  });
+</script></head><body for="html-export">
+    
+    
+      <div class="crossnote markdown-preview  ">
+      
+<h1 id="知识库流程设计方案">知识库流程设计方案 </h1>
+<h2 id="1-概述">1. 概述 </h2>
+<p>本文档描述 OmniMind 系统中知识库的完整流程设计，包括可见性控制、权限管理、邀请机制、成员管理等内容。</p>
+<h2 id="2-知识库可见性">2. 知识库可见性 </h2>
+<h3 id="21-可见性类型">2.1 可见性类型 </h3>
+<table>
+<thead>
+<tr>
+<th>可见性</th>
+<th>说明</th>
+<th>拥有者</th>
+<th>成员</th>
+<th>非成员</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>私有</strong></td>
+<td>个人知识库</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td><strong>内部</strong></td>
+<td>秘密共享知识库</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td><strong>公开</strong></td>
+<td>公开共享知识库</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-权限检查逻辑">2.2 权限检查逻辑 </h3>
+<div class="mermaid">flowchart TD
+    A[用户访问知识库] --&gt; B{是否是拥有者?}
+    B --&gt;|是| C[允许访问]
+    B --&gt;|否| D{可见性类型}
+    D --&gt;|私有| E[拒绝访问&lt;br/&gt;提示: 只有拥有者可以访问]
+    D --&gt;|内部| E
+    D --&gt;|公开| F{是否是成员?}
+    F --&gt;|是| C
+    F --&gt;|否| G[拒绝访问&lt;br/&gt;提示: 只有成员可以访问]
+</div><h3 id="23-访问控制点">2.3 访问控制点 </h3>
+<ul>
+<li><strong>知识库详情页</strong> - <code>GET /api/KnowledgeBase/{id}</code></li>
+<li><strong>文档列表</strong> - <code>GET /api/Document?knowledgeBaseId={id}</code></li>
+<li><strong>文档详情</strong> - <code>GET /api/Document/{id}</code></li>
+<li><strong>文件夹树</strong> - <code>GET /api/Folder/tree/{knowledgeBaseId}</code></li>
+<li><strong>文件夹列表</strong> - <code>GET /api/Folder/list/{knowledgeBaseId}</code></li>
+</ul>
+<h2 id="3-邀请机制">3. 邀请机制 </h2>
+<h3 id="31-邀请流程">3.1 邀请流程 </h3>
+<div class="mermaid">sequenceDiagram
+    participant Owner as 拥有者/管理员
+    participant System as 系统后端
+    participant Invitee as 被邀请人
+    participant DB as 数据库
+
+    Owner-&gt;&gt;System: 创建邀请(指定邮箱、角色、是否需要审核)
+    System-&gt;&gt;DB: 保存邀请(Pending状态)
+    System--&gt;&gt;Owner: 返回邀请链接
+
+    Invitee-&gt;&gt;System: 通过链接访问邀请页面
+    System-&gt;&gt;DB: 查询邀请信息
+    System--&gt;&gt;Invitee: 显示邀请详情
+
+    Invitee-&gt;&gt;System: 接受邀请(可填写申请理由)
+    alt 需要审核
+        System-&gt;&gt;DB: 状态保持Pending,记录InviteeUserId
+        System--&gt;&gt;Invitee: 等待管理员审核
+        Owner-&gt;&gt;System: 审核邀请
+        alt 通过
+            System-&gt;&gt;DB: 状态-&gt;Accepted, 创建成员记录
+        else 拒绝
+            System-&gt;&gt;DB: 状态-&gt;Rejected
+        end
+    else 不需要审核
+        System-&gt;&gt;DB: 状态-&gt;Accepted, 创建成员记录
+        System--&gt;&gt;Invitee: 已加入知识库
+    end
+</div><h3 id="32-邀请状态流转">3.2 邀请状态流转 </h3>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>说明</th>
+<th>InviteeUserId</th>
+<th>成员记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Pending</code></td>
+<td>待处理/待审核</td>
+<td>用户接受后填写</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>Accepted</code></td>
+<td>已加入</td>
+<td>已填写</td>
+<td>已创建</td>
+</tr>
+<tr>
+<td><code>Rejected</code></td>
+<td>已拒绝</td>
+<td>已填写</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>Expired</code></td>
+<td>已过期</td>
+<td>-</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>Canceled</code></td>
+<td>已取消</td>
+<td>-</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-邀请参数">3.3 邀请参数 </h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Email</code></td>
+<td>string?</td>
+<td>被邀请人邮箱（可选，留空则为公开邀请）</td>
+</tr>
+<tr>
+<td><code>Role</code></td>
+<td>enum</td>
+<td>默认角色：Admin/Editor/Viewer</td>
+</tr>
+<tr>
+<td><code>RequireApproval</code></td>
+<td>bool</td>
+<td>是否需要管理员审核</td>
+</tr>
+<tr>
+<td><code>ExpireDays</code></td>
+<td>int</td>
+<td>有效期（天数）</td>
+</tr>
+<tr>
+<td><code>ApplicationReason</code></td>
+<td>string?</td>
+<td>申请理由（用户接受时填写）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-成员管理">4. 成员管理 </h2>
+<h3 id="41-成员角色">4.1 成员角色 </h3>
+<table>
+<thead>
+<tr>
+<th>角色</th>
+<th>权限</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Admin</code></td>
+<td>管理员</td>
+<td>管理成员、创建邀请、删除内容</td>
+</tr>
+<tr>
+<td><code>Editor</code></td>
+<td>协助者</td>
+<td>编辑内容、上传文件</td>
+</tr>
+<tr>
+<td><code>Viewer</code></td>
+<td>查看者</td>
+<td>只读访问</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-成员操作">4.2 成员操作 </h3>
+<ul>
+<li><strong>添加成员</strong>：通过邀请机制</li>
+<li><strong>移除成员</strong>：拥有者/管理员可移除其他成员</li>
+<li><strong>角色管理</strong>：拥有者可修改成员角色</li>
+</ul>
+<h2 id="5-文件夹与文档">5. 文件夹与文档 </h2>
+<h3 id="51-文件夹结构">5.1 文件夹结构 </h3>
+<pre data-role="codeBlock" data-info="" class="language-text"><code>知识库根目录
+├── 文件夹A
+│   ├── 文件夹A-1
+│   │   └── 文档1.pdf
+│   └── 文档2.docx
+├── 文件夹B
+│   └── 文档3.txt
+└── 文档4.md (根目录)
+</code></pre><h3 id="52-操作权限">5.2 操作权限 </h3>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>拥有者</th>
+<th>Admin</th>
+<th>Editor</th>
+<th>Viewer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>查看文档/文件夹</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>上传文档</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>创建文件夹</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>删除文档/文件夹</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>移动文档/文件夹</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>重命名</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>管理成员</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>创建邀请</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-api-设计">6. API 设计 </h2>
+<h3 id="61-权限检查扩展">6.1 权限检查扩展 </h3>
+<pre data-role="codeBlock" data-info="csharp" class="language-csharp csharp"><code><span class="token comment">// 使用方式</span>
+<span class="token class-name"><span class="token keyword keyword-var">var</span></span> authResult <span class="token operator">=</span> <span class="token keyword keyword-await">await</span> dbContext<span class="token punctuation">.</span><span class="token function">CheckKnowledgeBaseAccessAsync</span><span class="token punctuation">(</span>knowledgeBaseId<span class="token punctuation">,</span> userId<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword keyword-if">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>authResult<span class="token punctuation">.</span>HasAccess<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword keyword-return">return</span> <span class="token function">StatusCode</span><span class="token punctuation">(</span><span class="token number">403</span><span class="token punctuation">,</span> <span class="token keyword keyword-new">new</span> <span class="token constructor-invocation class-name">ErrorResponse</span> <span class="token punctuation">{</span> Message <span class="token operator">=</span> authResult<span class="token punctuation">.</span>Message <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre><h3 id="62-核心-api">6.2 核心 API </h3>
+<h4 id="知识库相关">知识库相关 </h4>
+<pre data-role="codeBlock" data-info="" class="language-text"><code>GET  /api/KnowledgeBase          # 获取知识库列表
+POST /api/KnowledgeBase          # 创建知识库
+GET  /api/KnowledgeBase/{id}      # 获取知识库详情
+PUT  /api/KnowledgeBase/{id}      # 更新知识库
+DELETE /api/KnowledgeBase/{id}    # 删除知识库
+</code></pre><h4 id="成员相关">成员相关 </h4>
+<pre data-role="codeBlock" data-info="" class="language-text"><code>GET  /api/KnowledgeBase/{id}/members    # 获取成员列表
+DELETE /api/KnowledgeBase/{id}/members/{userId}  # 移除成员
+</code></pre><h4 id="邀请相关">邀请相关 </h4>
+<pre data-role="codeBlock" data-info="" class="language-text"><code>POST   /api/Invitation                      # 创建邀请
+GET    /api/Invitation/knowledge-base/{id}  # 获取邀请列表
+GET    /api/Invitation/code/{code}          # 获取邀请详情(通过邀请码)
+POST   /api/Invitation/respond              # 响应邀请(接受/拒绝)
+POST   /api/Invitation/{id}/approve         # 审核邀请
+DELETE /api/Invitation/{id}                  # 取消邀请
+</code></pre><h4 id="文档相关">文档相关 </h4>
+<pre data-role="codeBlock" data-info="" class="language-text"><code>GET    /api/Document                         # 获取文档列表
+GET    /api/Document/{id}                     # 获取文档详情
+POST   /api/Document/upload                  # 上传文档
+POST   /api/Document                          # 创建文档(笔记/链接)
+DELETE /api/Document/{id}                     # 删除文档
+PATCH  /api/Document/{id}/move               # 移动文档
+</code></pre><h4 id="文件夹相关">文件夹相关 </h4>
+<pre data-role="codeBlock" data-info="" class="language-text"><code>GET    /api/Folder/tree/{knowledgeBaseId}    # 获取文件夹树
+GET    /api/Folder/list/{knowledgeBaseId}    # 获取文件夹列表
+POST   /api/Folder                            # 创建文件夹
+PUT    /api/Folder/{id}                       # 更新文件夹
+PATCH  /api/Folder/{id}/move                  # 移动文件夹
+DELETE /api/Folder/{id}                       # 删除文件夹
+</code></pre><h2 id="7-数据模型">7. 数据模型 </h2>
+<h3 id="71-核心实体">7.1 核心实体 </h3>
+<pre data-role="codeBlock" data-info="csharp" class="language-csharp csharp"><code><span class="token comment">// 知识库</span>
+<span class="token keyword keyword-public">public</span> <span class="token keyword keyword-class">class</span> <span class="token class-name">KnowledgeBase</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword keyword-string">string</span> Id
+    <span class="token keyword keyword-string">string</span> Name
+    <span class="token keyword keyword-string">string</span><span class="token punctuation">?</span> Description
+    Visibility Visibility  <span class="token comment">// Private/Internal/Public</span>
+    <span class="token keyword keyword-string">string</span> OwnerUserId
+    List<span class="token operator">&lt;</span>KnowledgeBaseMember<span class="token operator">&gt;</span> Members
+    List<span class="token operator">&lt;</span>KnowledgeBaseInvitation<span class="token operator">&gt;</span> Invitations
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 成员</span>
+<span class="token keyword keyword-public">public</span> <span class="token keyword keyword-class">class</span> <span class="token class-name">KnowledgeBaseMember</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword keyword-string">string</span> Id
+    <span class="token keyword keyword-string">string</span> KnowledgeBaseId
+    <span class="token keyword keyword-string">string</span> UserId
+    KnowledgeBaseMemberRole Role  <span class="token comment">// Admin/Editor/Viewer</span>
+    <span class="token keyword keyword-string">string</span><span class="token punctuation">?</span> InvitedByUserId
+    DateTimeOffset CreatedAt
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 邀请</span>
+<span class="token keyword keyword-public">public</span> <span class="token keyword keyword-class">class</span> <span class="token class-name">KnowledgeBaseInvitation</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword keyword-string">string</span> Id
+    <span class="token keyword keyword-string">string</span> KnowledgeBaseId
+    <span class="token keyword keyword-string">string</span> Code              <span class="token comment">// 邀请码</span>
+    <span class="token keyword keyword-string">string</span><span class="token punctuation">?</span> Email           <span class="token comment">// 被邀请人邮箱</span>
+    KnowledgeBaseMemberRole Role
+    <span class="token keyword keyword-bool">bool</span> RequireApproval
+    InvitationStatus Status
+    <span class="token keyword keyword-string">string</span> InviterUserId
+    <span class="token keyword keyword-string">string</span><span class="token punctuation">?</span> InviteeUserId
+    <span class="token keyword keyword-string">string</span><span class="token punctuation">?</span> ApplicationReason
+    DateTimeOffset ExpiresAt
+    DateTimeOffset<span class="token punctuation">?</span> AcceptedAt
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 文件夹</span>
+<span class="token keyword keyword-public">public</span> <span class="token keyword keyword-class">class</span> <span class="token class-name">Folder</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword keyword-string">string</span> Id
+    <span class="token keyword keyword-string">string</span> KnowledgeBaseId
+    <span class="token keyword keyword-string">string</span><span class="token punctuation">?</span> ParentFolderId
+    <span class="token keyword keyword-string">string</span> Name
+    <span class="token keyword keyword-string">string</span> Path
+    <span class="token keyword keyword-string">string</span><span class="token punctuation">?</span> Description
+    <span class="token keyword keyword-int">int</span> SortOrder
+    <span class="token keyword keyword-string">string</span> CreatedByUserId
+    DateTimeOffset CreatedAt
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 文档</span>
+<span class="token keyword keyword-public">public</span> <span class="token keyword keyword-class">class</span> <span class="token class-name">Document</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword keyword-string">string</span> Id
+    <span class="token keyword keyword-string">string</span> KnowledgeBaseId
+    <span class="token keyword keyword-string">string</span><span class="token punctuation">?</span> FolderId
+    <span class="token keyword keyword-string">string</span> Title
+    <span class="token keyword keyword-string">string</span> ContentType
+    SourceType SourceType
+    <span class="token keyword keyword-string">string</span><span class="token punctuation">?</span> ObjectKey
+    <span class="token keyword keyword-long">long</span><span class="token punctuation">?</span> FileSize
+    DocumentStatus Status
+    <span class="token keyword keyword-string">string</span> CreatedByUserId
+    DateTimeOffset CreatedAt
+<span class="token punctuation">}</span>
+</code></pre><h3 id="72-枚举定义">7.2 枚举定义 </h3>
+<pre data-role="codeBlock" data-info="csharp" class="language-csharp csharp"><code><span class="token comment">// 可见性</span>
+<span class="token keyword keyword-public">public</span> <span class="token keyword keyword-enum">enum</span> <span class="token class-name">Visibility</span>
+<span class="token punctuation">{</span>
+    Private <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span>   <span class="token comment">// 私有，只有拥有者</span>
+    Internal <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">,</span>  <span class="token comment">// 内部，私密共享</span>
+    Public <span class="token operator">=</span> <span class="token number">3</span>     <span class="token comment">// 公开，公开共享</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 成员角色</span>
+<span class="token keyword keyword-public">public</span> <span class="token keyword keyword-enum">enum</span> <span class="token class-name">KnowledgeBaseMemberRole</span>
+<span class="token punctuation">{</span>
+    Admin <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span>     <span class="token comment">// 管理员</span>
+    Editor <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">,</span>    <span class="token comment">// 协助者</span>
+    Viewer <span class="token operator">=</span> <span class="token number">3</span>     <span class="token comment">// 查看者</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 邀请状态</span>
+<span class="token keyword keyword-public">public</span> <span class="token keyword keyword-enum">enum</span> <span class="token class-name">InvitationStatus</span>
+<span class="token punctuation">{</span>
+    Pending <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>   <span class="token comment">// 待处理/待审核</span>
+    Accepted <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span>  <span class="token comment">// 已接受/已加入</span>
+    Rejected <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">,</span>  <span class="token comment">// 已拒绝</span>
+    Expired <span class="token operator">=</span> <span class="token number">3</span><span class="token punctuation">,</span>   <span class="token comment">// 已过期</span>
+    Canceled <span class="token operator">=</span> <span class="token number">4</span>   <span class="token comment">// 已取消</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 文档状态</span>
+<span class="token keyword keyword-public">public</span> <span class="token keyword keyword-enum">enum</span> <span class="token class-name">DocumentStatus</span>
+<span class="token punctuation">{</span>
+    Uploaded <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+    Processing <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span>
+    Completed <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">,</span>
+    Failed <span class="token operator">=</span> <span class="token number">3</span>
+<span class="token punctuation">}</span>
+</code></pre><h2 id="8-前端交互">8. 前端交互 </h2>
+<h3 id="81-知识库详情页">8.1 知识库详情页 </h3>
+<ul>
+<li><strong>私密知识库提示</strong>：当用户无权限访问时，显示"知识库当前为私密状态，只有拥有者可以访问"</li>
+<li><strong>文档列表为空</strong>：无权限时返回空列表并附带提示消息</li>
+<li><strong>成员管理</strong>：拥有者/管理员可管理成员和邀请</li>
+</ul>
+<h3 id="82-邀请流程">8.2 邀请流程 </h3>
+<ol>
+<li>创建邀请 → 生成邀请链接</li>
+<li>被邀请人点击链接 → 显示邀请详情</li>
+<li>被邀请人接受邀请（可填写申请理由）</li>
+<li>需要审核：等待管理员审核；不需要审核：直接加入</li>
+<li>管理员在"成员管理"→"邀请列表"中审核</li>
+</ol>
+<h2 id="9-安全考虑">9. 安全考虑 </h2>
+<ol>
+<li><strong>权限检查</strong>：所有访问知识库内容的 API 都需要进行权限检查</li>
+<li><strong>邀请码安全</strong>：使用 8 位随机码，去除易混淆字符</li>
+<li><strong>邀请过期</strong>：邀请有效期默认 7 天，过期后自动失效</li>
+<li><strong>邮箱验证</strong>：指定邮箱的邀请只能被该邮箱用户接受</li>
+<li><strong>审核机制</strong>：可选的审核流程，拥有者/管理员可批准或拒绝加入申请</li>
+</ol>
+<h2 id="10-更新日志">10. 更新日志 </h2>
+<table>
+<thead>
+<tr>
+<th>日期</th>
+<th>版本</th>
+<th>更新内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2025-02-05</td>
+<td>1.0</td>
+<td>初始版本，包含完整权限设计和邀请流程</td>
+</tr>
+</tbody>
+</table>
+
+      </div>
+      
+      
+    
+    
+    <script type="module">
+// TODO: If ZenUML gets integrated into mermaid in the future,
+//      we can remove the following lines.
+
+
+var MERMAID_CONFIG = ({"startOnLoad":false});
+if (typeof MERMAID_CONFIG !== 'undefined') {
+  MERMAID_CONFIG.startOnLoad = false
+  MERMAID_CONFIG.cloneCssStyles = false
+  MERMAID_CONFIG.theme = "default"
+}
+
+mermaid.initialize(MERMAID_CONFIG || {})
+if (typeof(window['Reveal']) !== 'undefined') {
+  function mermaidRevealHelper(event) {
+    var currentSlide = event.currentSlide
+    var diagrams = currentSlide.querySelectorAll('.mermaid')
+    for (var i = 0; i < diagrams.length; i++) {
+      var diagram = diagrams[i]
+      if (!diagram.hasAttribute('data-processed')) {
+        mermaid.init(null, diagram, ()=> {
+          Reveal.slide(event.indexh, event.indexv)
+        })
+      }
+    }
+  }
+  Reveal.addEventListener('slidetransitionend', mermaidRevealHelper)
+  Reveal.addEventListener('ready', mermaidRevealHelper)
+  await mermaid.run({
+    nodes: document.querySelectorAll('.mermaid')
+  })
+} else {
+  await mermaid.run({
+    nodes: document.querySelectorAll('.mermaid')
+  })
+}
+</script>
+    
+    
+    
+  
+    </body></html>

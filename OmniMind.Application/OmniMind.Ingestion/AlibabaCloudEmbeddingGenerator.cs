@@ -1,10 +1,39 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
+using OmniMind.Application.Services;
+using OmniMind.Entities;
 
 namespace OmniMind.Ingestion
 {
+    /// <summary>
+    /// 阿里云 DashScope TOKEN 使用情况
+    /// </summary>
+    public class AlibabaCloudUsageInfo
+    {
+        /// <summary>
+        /// 输入 TOKEN 数
+        /// </summary>
+        public int InputTokens { get; set; }
+
+        /// <summary>
+        /// 输出 TOKEN 数（向量化通常为 0）
+        /// </summary>
+        public int OutputTokens { get; set; }
+
+        /// <summary>
+        /// 总 TOKEN 数
+        /// </summary>
+        public int TotalTokens { get; set; }
+
+        /// <summary>
+        /// 请求ID（用于追溯）
+        /// </summary>
+        public string? RequestId { get; set; }
+    }
+
     /// <summary>
     /// 阿里云 DashScope 文本向量化服务
     /// 文档: https://help.aliyun.com/zh/dashscope/developer-reference/text-embedding-api-details
@@ -15,15 +44,18 @@ namespace OmniMind.Ingestion
         private readonly HttpClient httpClient;
         private readonly AlibabaCloudOptions options;
         private readonly ILogger<AlibabaCloudEmbeddingGenerator> logger;
+        private readonly IServiceProvider serviceProvider;
 
         public AlibabaCloudEmbeddingGenerator(
             HttpClient httpClient,
             AlibabaCloudOptions options,
-            ILogger<AlibabaCloudEmbeddingGenerator> logger)
+            ILogger<AlibabaCloudEmbeddingGenerator> logger,
+            IServiceProvider serviceProvider)
         {
             this.httpClient = httpClient;
             this.options = options;
             this.logger = logger;
+            this.serviceProvider = serviceProvider;
 
             // 设置 DashScope API 地址
             this.httpClient.BaseAddress = new Uri(this.options.Endpoint ?? "https://dashscope.aliyuncs.com");
@@ -54,6 +86,11 @@ namespace OmniMind.Ingestion
         public int VectorSize => options.VectorSize > 0 ? options.VectorSize : 1024;
 
         /// <summary>
+        /// 获取最后请求的 TOKEN 使用情况
+        /// </summary>
+        public AlibabaCloudUsageInfo? LastUsageInfo { get; private set; }
+
+        /// <summary>
         /// 生成向量
         /// </summary>
         public async Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
@@ -72,12 +109,67 @@ namespace OmniMind.Ingestion
             // DashScope API 单次最多支持 25 个文本
             const int batchSize = 5;
             var allEmbeddings = new List<Embedding<float>>();
+            AlibabaCloudUsageInfo? totalUsage = null;
 
             for (int i = 0; i < texts.Count; i += batchSize)
             {
                 var batch = texts.Skip(i).Take(batchSize).ToList();
-                var embeddings = await GenerateBatchInternalAsync(batch, cancellationToken);
+                var (embeddings, usage) = await GenerateBatchInternalAsync(batch, cancellationToken);
                 allEmbeddings.AddRange(embeddings);
+
+                // 累加 TOKEN 使用量
+                if (usage != null)
+                {
+                    if (totalUsage == null)
+                    {
+                        totalUsage = usage;
+                    }
+                    else
+                    {
+                        totalUsage.InputTokens += usage.InputTokens;
+                        totalUsage.OutputTokens += usage.OutputTokens;
+                        totalUsage.TotalTokens += usage.TotalTokens;
+                    }
+                }
+            }
+
+            LastUsageInfo = totalUsage;
+
+            // 自动记录 TOKEN 使用（从服务容器中获取 ITokenUsageService）
+            if (totalUsage != null)
+            {
+                // 创建作用域以获取 Scoped 服务
+                using var scope = serviceProvider.CreateScope();
+                var tokenUsageService = scope.ServiceProvider.GetService<OmniMind.Application.Services.ITokenUsageService>();
+
+                if (tokenUsageService != null)
+                {
+                    var context = AiCallContext.Current;
+                    if (context != null)
+                    {
+                        try
+                        {
+                            await tokenUsageService.LogEmbeddingUsageAsync(
+                                userId: context.UserId,
+                                platform: AiPlatforms.Aliyun,
+                                modelName: Metadata.ModelId,
+                                inputTokens: totalUsage.InputTokens,
+                                documentId: context.DocumentId,
+                                knowledgeBaseId: context.KnowledgeBaseId,
+                                requestId: totalUsage.RequestId);
+
+                            logger.LogDebug("[AlibabaCloudEmbedding] 已记录 TOKEN 使用: {Tokens}", totalUsage.TotalTokens);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "[AlibabaCloudEmbedding] 记录 TOKEN 使用失败");
+                        }
+                    }
+                    else
+                    {
+                        logger.LogWarning("[AlibabaCloudEmbedding] 未设置 EmbeddingContext，跳过 TOKEN 使用记录");
+                    }
+                }
             }
 
             return new GeneratedEmbeddings<Embedding<float>>(allEmbeddings);
@@ -86,7 +178,7 @@ namespace OmniMind.Ingestion
         /// <summary>
         /// 内部批量实现
         /// </summary>
-        private async Task<List<Embedding<float>>> GenerateBatchInternalAsync(
+        private async Task<(List<Embedding<float>> Embeddings, AlibabaCloudUsageInfo? Usage)> GenerateBatchInternalAsync(
             List<string> texts,
             CancellationToken cancellationToken)
         {
@@ -120,6 +212,27 @@ namespace OmniMind.Ingestion
                 using var jsonDoc = JsonDocument.Parse(responseBody);
                 var root = jsonDoc.RootElement;
 
+                // 提取 usage 信息
+                AlibabaCloudUsageInfo? usage = null;
+                if (root.TryGetProperty("usage", out var usageProp))
+                {
+                    usage = new AlibabaCloudUsageInfo
+                    {
+                        InputTokens = usageProp.GetProperty("prompt_tokens").GetInt32(),
+                        OutputTokens = 0,
+                        TotalTokens = usageProp.GetProperty("total_tokens").GetInt32()
+                    };
+
+                    // 尝试获取 request_id
+                    if (root.TryGetProperty("id", out var requestIdProp))
+                    {
+                        usage.RequestId = requestIdProp.GetString();
+                    }
+
+                    logger.LogDebug("[AlibabaCloudEmbedding] TOKEN 使用: {InputTokens} 输入, {OutputTokens} 输出, {TotalTokens} 总计",
+                        usage.InputTokens, usage.OutputTokens, usage.TotalTokens);
+                }
+
                 // DashScope OpenAI 兼容格式响应: { "data": [{ "embedding": [...], "index": 0, "object": "embedding" }] }
                 if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
                 {
@@ -142,7 +255,7 @@ namespace OmniMind.Ingestion
                     }
 
                     logger.LogDebug("[AlibabaCloudEmbedding] 向量化完成，生成 {Count} 个向量", result.Count);
-                    return result;
+                    return (result, usage);
                 }
 
                 logger.LogError("[AlibabaCloudEmbedding] 响应格式错误: {Body}", responseBody);
