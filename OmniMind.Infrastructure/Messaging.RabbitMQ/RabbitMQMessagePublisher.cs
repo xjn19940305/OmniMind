@@ -85,6 +85,44 @@ namespace OmniMind.Messaging.RabbitMQ
             return PublishAsync(options.DocumentUploadQueue, message, ct);
         }
 
+        public Task PublishTranscribeRequestAsync(Messages.TranscribeRequestMessage message, CancellationToken ct = default)
+        {
+            var json = JsonConvert.SerializeObject(message, jsonSettings);
+            var body = Encoding.UTF8.GetBytes(json);
+
+            var properties = channel.CreateBasicProperties();
+            properties.DeliveryMode = 2; // 持久化
+            properties.ContentType = "application/json";
+            properties.Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+
+            channel.BasicPublish(
+                exchange: options.DocumentExchange,
+                routingKey: options.TranscribeRequestRoutingKey,
+                basicProperties: properties,
+                body: body);
+
+            return Task.CompletedTask;
+        }
+
+        public Task PublishTranscribeCompletedAsync(Messages.TranscribeCompletedMessage message, CancellationToken ct = default)
+        {
+            var json = JsonConvert.SerializeObject(message, jsonSettings);
+            var body = Encoding.UTF8.GetBytes(json);
+
+            var properties = channel.CreateBasicProperties();
+            properties.DeliveryMode = 2; // 持久化
+            properties.ContentType = "application/json";
+            properties.Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+
+            channel.BasicPublish(
+                exchange: options.DocumentExchange,
+                routingKey: options.TranscribeCompletedRoutingKey,
+                basicProperties: properties,
+                body: body);
+
+            return Task.CompletedTask;
+        }
+
         public void Dispose()
         {
             channel?.Dispose();

@@ -34,6 +34,9 @@ export interface ChatMessage {
   timestamp: string
   files?: Attachment[]
   metadata?: Record<string, any>
+  status?: 'pending' | 'streaming' | 'completed' | 'failed'
+  error?: string
+  completedAt?: string
 }
 
 export interface ChatSession {
@@ -42,6 +45,44 @@ export interface ChatSession {
   messages: ChatMessage[]
   createdAt: string
   updatedAt: string
+}
+
+// 新增：会话相关类型（与后端对应）
+export interface Conversation {
+  id: string
+  title: string
+  conversationType: 'simple' | 'knowledge_base' | 'document'
+  knowledgeBaseId?: string
+  documentId?: string
+  modelId?: string
+  isPinned: boolean
+  createdAt: string
+  updatedAt?: string
+  messageCount?: number
+  lastMessage?: string
+  lastMessageAt?: string
+}
+
+export interface ConversationDetail extends Conversation {
+  messages: ChatMessageDto[]
+}
+
+export interface ChatMessageDto {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  status: 'pending' | 'streaming' | 'completed' | 'failed'
+  error?: string
+  knowledgeBaseId?: string
+  documentId?: string
+  references?: string
+  createdAt: string
+  completedAt?: string
+}
+
+export interface ConversationListResponse {
+  conversations: Conversation[]
+  total: number
 }
 
 export interface Attachment {

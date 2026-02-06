@@ -6,12 +6,22 @@ using System.Security.Claims;
 namespace App.Controllers
 {
     /// <summary>
+    /// ID 生成器
+    /// </summary>
+    public static class IdGenerator
+    {
+        /// <summary>
+        /// 生成新的有序 GUID (UUID v7)
+        /// </summary>
+        public static string NewId() => Guid.CreateVersion7().ToString();
+    }
+
+    /// <summary>
     /// Controller 基类，提供通用的辅助方法
     /// </summary>
     [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public abstract class BaseController : ControllerBase
     {
-
         /// <summary>
         /// 获取当前用户ID
         /// </summary>

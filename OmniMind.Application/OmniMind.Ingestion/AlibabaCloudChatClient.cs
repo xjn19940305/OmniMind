@@ -11,6 +11,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
+// 使用别名解决 ChatMessage 类型冲突
+using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
+
 namespace OmniMind.Ingestion
 {
     /// <summary>
@@ -76,7 +79,7 @@ namespace OmniMind.Ingestion
         /// 获取聊天响应（非流式）
         /// </summary>
         public async Task<ChatCompletion> CompleteAsync(
-            IList<ChatMessage> messages,
+            IList<AIChatMessage> messages,
             ChatOptions? options = null,
             CancellationToken cancellationToken = default)
         {
@@ -112,7 +115,7 @@ namespace OmniMind.Ingestion
         /// 获取聊天响应（流式）
         /// </summary>
         public async IAsyncEnumerable<StreamingChatCompletionUpdate> CompleteStreamingAsync(
-            IList<ChatMessage> messages,
+            IList<AIChatMessage> messages,
             ChatOptions? options = null,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -335,7 +338,7 @@ namespace OmniMind.Ingestion
         /// 构建请求体
         /// </summary>
         private object BuildRequestBody(
-            IList<ChatMessage> messages,
+            IList<AIChatMessage> messages,
             ChatOptions? options,
             bool stream)
         {
@@ -447,13 +450,13 @@ namespace OmniMind.Ingestion
                     var content = message.GetProperty("content").GetString() ?? string.Empty;
 
                     // 构建结果列表
-                    var chatMessage = new ChatMessage(
+                    var chatMessage = new AIChatMessage(
                         role == "assistant" ? ChatRole.Assistant : ChatRole.User,
                         content
                     );
 
                     logger.LogDebug("[AlibabaCloudChat] 响应成功，内容长度: {Length}", content.Length);
-                    return new ChatCompletion(new List<ChatMessage> { chatMessage });
+                    return new ChatCompletion(new List<AIChatMessage> { chatMessage });
                 }
             }
 
@@ -498,17 +501,15 @@ namespace OmniMind.Ingestion
             return CreateStreamingUpdate(content);
         }
 
-
-        private static readonly System.Reflection.PropertyInfo? TextProp =
-    typeof(StreamingChatCompletionUpdate).GetProperty("Text");
         /// <summary>
         /// 创建流式更新对象（辅助方法）
         /// </summary>
         private static StreamingChatCompletionUpdate CreateStreamingUpdate(string content)
         {
-            var update = new StreamingChatCompletionUpdate();
-            TextProp?.SetValue(update, content ?? string.Empty);
-            return update;
+            return new StreamingChatCompletionUpdate()
+            {
+                Text = content
+            };
         }
         /// <summary>
         /// 获取 JSON 序列化选项
