@@ -19,6 +19,8 @@ namespace OmniMind.Persistence.PostgreSql
         public DbSet<TokenUsageLog> TokenUsageLogs { get; set; }
         public DbSet<UserProfile> UserProfiles { get; set; }
         public DbSet<PushDevice> PushDevices { get; set; }
+        public DbSet<Conversation> Conversations { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
 
         public OmniMindDbContext(DbContextOptions options) : base(options)
         {
@@ -114,6 +116,34 @@ namespace OmniMind.Persistence.PostgreSql
             modelBuilder.Entity<PushDevice>()
                 .HasIndex(d => d.ClientId)
                 .IsUnique();
+
+            // Conversation - User 关系
+            modelBuilder.Entity<Conversation>()
+                .HasOne(c => c.User)
+                .WithMany(u => u.Conversations)
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Conversation - KnowledgeBase 关系（可选）
+            modelBuilder.Entity<Conversation>()
+                .HasOne(c => c.KnowledgeBase)
+                .WithMany()
+                .HasForeignKey(c => c.KnowledgeBaseId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Conversation - Document 关系（临时文件，可选）
+            modelBuilder.Entity<Conversation>()
+                .HasOne(c => c.Document)
+                .WithMany()
+                .HasForeignKey(c => c.DocumentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // ChatMessage - Conversation 关系
+            modelBuilder.Entity<ChatMessage>()
+                .HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

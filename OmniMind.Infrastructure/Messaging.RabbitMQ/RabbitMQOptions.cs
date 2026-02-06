@@ -54,5 +54,29 @@ namespace OmniMind.Messaging.RabbitMQ
         /// 路由键
         /// </summary>
         public string DocumentUploadRoutingKey { get; set; } = "document.upload";
+
+        #region 转写相关配置
+
+        /// <summary>
+        /// 转写请求队列名称
+        /// </summary>
+        public string TranscribeRequestQueue { get; set; } = "transcribe-request";
+
+        /// <summary>
+        /// 转写请求路由键
+        /// </summary>
+        public string TranscribeRequestRoutingKey { get; set; } = "transcribe.request";
+
+        /// <summary>
+        /// 转写完成队列名称
+        /// </summary>
+        public string TranscribeCompletedQueue { get; set; } = "transcribe-completed";
+
+        /// <summary>
+        /// 转写完成路由键
+        /// </summary>
+        public string TranscribeCompletedRoutingKey { get; set; } = "transcribe.completed";
+
+        #endregion
     }
 }

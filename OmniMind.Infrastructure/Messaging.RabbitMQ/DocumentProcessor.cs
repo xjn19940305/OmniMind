@@ -21,6 +21,76 @@ namespace OmniMind.Messaging.RabbitMQ
     public static class DocumentProcessor
     {
         /// <summary>
+        /// 需要转写的音视频 MIME 类型
+        /// </summary>
+        private static readonly HashSet<string> TranscribeContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            // 音频
+            "audio/mpeg",        // .mp3
+            "audio/mp3",
+            "audio/wav",         // .wav
+            "audio/wave",
+            "audio/x-wav",
+            "audio/mp4",         // .m4a
+            "audio/x-m4a",
+            "audio/aac",
+            "audio/ogg",         // .ogg
+            "audio/webm",        // .webm audio
+            "audio/flac",        // .flac
+            "audio/x-flac",
+            "audio/amr",         // .amr (录音格式)
+            "audio/x-amr",
+
+            // 视频
+            "video/mp4",         // .mp4
+            "video/x-m4v",
+            "video/quicktime",   // .mov
+            "video/x-msvideo",   // .avi
+            "video/x-matroska",  // .mkv
+            "video/webm",        // .webm
+            "video/x-flv",       // .flv
+            "video/x-ms-wmv",    // .wmv
+        };
+
+        /// <summary>
+        /// 需要转写的文件扩展名（作为备用检测）
+        /// </summary>
+        private static readonly HashSet<string> TranscribeExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            // 音频
+            ".mp3", ".wav", ".wave", ".m4a", ".aac", ".ogg", ".flac", ".amr",
+            // 视频
+            ".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".wmv", ".m4v"
+        };
+
+        /// <summary>
+        /// 检测是否是需要转写的音视频文件
+        /// </summary>
+        public static bool IsAudioOrVideo(Document document)
+        {
+            // 优先检查 MIME 类型
+            if (!string.IsNullOrWhiteSpace(document.ContentType))
+            {
+                var mimeType = document.ContentType.ToLowerInvariant();
+                // 检查是否以 audio/ 或 video/ 开头，或者在我们的预定义列表中
+                if (mimeType.StartsWith("audio/") || mimeType.StartsWith("video/"))
+                {
+                    return true;
+                }
+            }
+
+            // 备用：检查文件扩展名
+            if (!string.IsNullOrWhiteSpace(document.Title) || !string.IsNullOrWhiteSpace(document.ObjectKey))
+            {
+                var fileName = !string.IsNullOrWhiteSpace(document.Title) ? document.Title : document.ObjectKey;
+                var extension = Path.GetExtension(fileName);
+                return TranscribeExtensions.Contains(extension);
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 处理单个文档
         /// </summary>
         public static async Task ProcessDocumentAsync(

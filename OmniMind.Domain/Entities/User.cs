@@ -61,5 +61,10 @@ namespace OmniMind.Entities
         /// 用户作为成员参与的知识库集合
         /// </summary>
         public ICollection<KnowledgeBaseMember> KnowledgeBaseMemberships { get; set; } = new List<KnowledgeBaseMember>();
+
+        /// <summary>
+        /// 用户的聊天会话集合
+        /// </summary>
+        public ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();
     }
 }

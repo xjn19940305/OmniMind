@@ -12,6 +12,11 @@ namespace OmniMind.Enums
     public enum DocumentStatus
     {
         /// <summary>
+        /// 等待处理（队列中）
+        /// </summary>
+        Pending = 0,
+
+        /// <summary>
         /// 已上传
         /// </summary>
         Uploaded = 1,

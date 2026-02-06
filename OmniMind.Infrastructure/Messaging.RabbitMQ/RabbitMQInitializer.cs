@@ -68,6 +68,40 @@ namespace OmniMind.Messaging.RabbitMQ
                     options.DocumentUploadQueue,
                     options.DocumentExchange,
                     options.DocumentUploadRoutingKey);
+
+                #region 声明转写相关队列
+
+                // 转写请求队列
+                channel.QueueDeclare(
+                    queue: options.TranscribeRequestQueue,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null);
+
+                channel.QueueBind(
+                    queue: options.TranscribeRequestQueue,
+                    exchange: options.DocumentExchange,
+                    routingKey: options.TranscribeRequestRoutingKey);
+
+                logger.LogInformation("RabbitMQ 转写请求队列已声明: {Queue}", options.TranscribeRequestQueue);
+
+                // 转写完成队列
+                channel.QueueDeclare(
+                    queue: options.TranscribeCompletedQueue,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null);
+
+                channel.QueueBind(
+                    queue: options.TranscribeCompletedQueue,
+                    exchange: options.DocumentExchange,
+                    routingKey: options.TranscribeCompletedRoutingKey);
+
+                logger.LogInformation("RabbitMQ 转写完成队列已声明: {Queue}", options.TranscribeCompletedQueue);
+
+                #endregion
             }
             catch (Exception ex)
             {

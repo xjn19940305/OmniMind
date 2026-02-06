@@ -36,6 +36,9 @@ namespace App.Controllers
         private readonly IMessagePublisher messagePublisher;
         private readonly ILogger<ChatController> logger;
 
+        // 流式消息取消令牌管理
+        private static readonly Dictionary<string, CancellationTokenSource> _cancellationTokenSources = new();
+
         public ChatController(
             IServiceScopeFactory serviceScopeFactory,
             IChatClient chatClient,
@@ -71,10 +74,12 @@ namespace App.Controllers
             }
 
             var userId = GetUserId();
-            var messageId = Guid.NewGuid().ToString();
-            var conversationId = request.SessionId ?? Guid.NewGuid().ToString();
+
             using var scope = serviceScopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
+
+            // 初始化会话并保存消息
+            var (conversationId, assistantMessageId) = await InitializeConversationAsync(dbContext, userId, request);
 
             try
             {
@@ -94,7 +99,7 @@ namespace App.Controllers
                     }
 
                     // 后台处理临时文件聊天（使用 Task.Run 确保独立执行）
-                    _ = Task.Run(() => ProcessDocumentChatAsync(messageId, conversationId, userId, request.DocumentId, request, messages));
+                    _ = Task.Run(() => ProcessDocumentChatAsync(assistantMessageId, conversationId, userId, request.DocumentId, request, messages));
                 }
                 else if (!string.IsNullOrWhiteSpace(request.KnowledgeBaseId))
                 {
@@ -108,22 +113,118 @@ namespace App.Controllers
                     }
 
                     // 后台处理 RAG 聊天（使用 Task.Run 确保独立执行）
-                    _ = Task.Run(() => ProcessRagChatAsync(messageId, conversationId, userId, knowledgeBase, request, messages));
+                    _ = Task.Run(() => ProcessRagChatAsync(assistantMessageId, conversationId, userId, knowledgeBase, request, messages));
                 }
                 else
                 {
-                    // 后台处理简单聊天（使用 Task.Run 确保独立执行）
-                    var aiMessages = ConvertToAiMessages(messages);
-                    _ = Task.Run(() => ProcessSimpleChatAsync(messageId, conversationId, userId, aiMessages, request));
+                    _ = Task.Run(async () =>
+                    {
+                        using (AiCallContext.BeginScope(userId, sessionId: conversationId))
+                        {
+                            logger.LogInformation("[Chat] 纯AI对话开始: MessageId={MessageId}, ConversationId={ConversationId}", assistantMessageId, conversationId);
+                            // 后台处理简单聊天（使用 Task.Run 确保独立执行）
+                            var aiMessages = ConvertToAiMessages(messages);
+                            await ProcessSimpleChatAsync(assistantMessageId, conversationId, userId, aiMessages, request);
+                        }
+                    });
                 }
 
-                return Ok(new ChatStreamResponse { MessageId = messageId, ConversationId = conversationId });
+                return Ok(new ChatStreamResponse
+                {
+                    MessageId = assistantMessageId,
+                    ConversationId = conversationId
+                });
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "[Chat] 聊天请求处理失败");
                 return BadRequest(new ErrorResponse { Message = "服务器内部错误" });
             }
+        }
+
+        /// <summary>
+        /// 初始化会话：获取或创建会话，保存用户消息，创建助手消息记录
+        /// </summary>
+        private async Task<(string conversationId, string assistantMessageId)> InitializeConversationAsync(
+            OmniMindDbContext dbContext,
+            string userId,
+            ChatRequest request)
+        {
+            // 获取或创建会话
+            var conversationId = request.SessionId;
+            Conversation? conversation = null;
+
+            if (!string.IsNullOrWhiteSpace(conversationId))
+            {
+                conversation = await dbContext.Conversations
+                    .FirstOrDefaultAsync(c => c.Id == conversationId && c.UserId == userId);
+            }
+
+            if (conversation == null)
+            {
+                // 新建会话
+                conversationId = IdGenerator.NewId();
+
+                // 确定会话类型
+                var conversationType = !string.IsNullOrWhiteSpace(request.DocumentId) ? "document"
+                    : !string.IsNullOrWhiteSpace(request.KnowledgeBaseId) ? "knowledge_base"
+                    : "simple";
+
+                conversation = new Conversation
+                {
+                    Id = conversationId,
+                    Title = GenerateConversationTitle(request.Message),
+                    UserId = userId,
+                    KnowledgeBaseId = request.KnowledgeBaseId,
+                    DocumentId = request.DocumentId,
+                    ModelId = request.Model,
+                    ConversationType = conversationType,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+
+                dbContext.Conversations.Add(conversation);
+            }
+            else
+            {
+                // 更新会话时间
+                conversation.UpdatedAt = DateTimeOffset.UtcNow;
+                dbContext.Conversations.Update(conversation);
+            }
+
+            await dbContext.SaveChangesAsync();
+
+            // 保存用户消息
+            var userMessage = new OmniMind.Entities.ChatMessage
+            {
+                Id = IdGenerator.NewId(),
+                ConversationId = conversationId,
+                Role = "user",
+                Content = request.Message,
+                Status = "completed",
+                KnowledgeBaseId = request.KnowledgeBaseId,
+                DocumentId = request.DocumentId,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            dbContext.ChatMessages.Add(userMessage);
+
+            // 创建助手消息记录（初始状态为 streaming）
+            var assistantMessageId = IdGenerator.NewId();
+            var assistantMessage = new OmniMind.Entities.ChatMessage
+            {
+                Id = assistantMessageId,
+                ConversationId = conversationId,
+                Role = "assistant",
+                Content = string.Empty,
+                Status = "streaming",
+                KnowledgeBaseId = request.KnowledgeBaseId,
+                DocumentId = request.DocumentId,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            dbContext.ChatMessages.Add(assistantMessage);
+
+            await dbContext.SaveChangesAsync();
+
+            return (conversationId, assistantMessageId);
         }
 
         /// <summary>
@@ -300,6 +401,263 @@ namespace App.Controllers
             }
         }
 
+        /// <summary>
+        /// 获取用户的会话列表
+        /// </summary>
+        [HttpGet("conversations")]
+        [ProducesResponseType(typeof(ConversationListResponse), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetConversations(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? type = null)
+        {
+            var userId = GetUserId();
+
+            using var scope = serviceScopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
+
+            var query = dbContext.Conversations
+                .Where(c => c.UserId == userId);
+
+            // 按类型过滤
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                query = query.Where(c => c.ConversationType == type);
+            }
+
+            // 总数
+            var total = await query.CountAsync();
+
+            // 分页查询，置顶的排在前面，然后按更新时间降序
+            var conversations = await query
+                .OrderByDescending(c => c.IsPinned)
+                .ThenByDescending(c => c.UpdatedAt)
+                .ThenByDescending(c => c.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(c => new ConversationResponse
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    ConversationType = c.ConversationType,
+                    KnowledgeBaseId = c.KnowledgeBaseId,
+                    DocumentId = c.DocumentId,
+                    ModelId = c.ModelId,
+                    IsPinned = c.IsPinned,
+                    CreatedAt = c.CreatedAt,
+                    UpdatedAt = c.UpdatedAt,
+                    MessageCount = dbContext.ChatMessages
+                        .Count(m => m.ConversationId == c.Id),
+                    LastMessage = dbContext.ChatMessages
+                        .Where(m => m.ConversationId == c.Id)
+                        .OrderByDescending(m => m.CreatedAt)
+                        .Select(m => m.Content)
+                        .FirstOrDefault(),
+                    LastMessageAt = dbContext.ChatMessages
+                        .Where(m => m.ConversationId == c.Id)
+                        .OrderByDescending(m => m.CreatedAt)
+                        .Select(m => (DateTimeOffset?)m.CreatedAt)
+                        .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            return Ok(new ConversationListResponse
+            {
+                Conversations = conversations,
+                Total = total
+            });
+        }
+
+        /// <summary>
+        /// 获取会话详情（包含消息列表）
+        /// </summary>
+        [HttpGet("conversations/{conversationId}")]
+        [ProducesResponseType(typeof(ConversationDetailResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetConversation(string conversationId)
+        {
+            var userId = GetUserId();
+
+            using var scope = serviceScopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
+
+            var conversation = await dbContext.Conversations
+                .FirstOrDefaultAsync(c => c.Id == conversationId && c.UserId == userId);
+
+            if (conversation == null)
+            {
+                return NotFound(new ErrorResponse { Message = "会话不存在" });
+            }
+
+            var messages = await dbContext.ChatMessages
+                .Where(m => m.ConversationId == conversationId)
+                .OrderBy(m => m.CreatedAt)
+                .Select(m => new ChatMessageDto
+                {
+                    Id = m.Id,
+                    Role = m.Role,
+                    Content = m.Content,
+                    Status = m.Status,
+                    Error = m.Error,
+                    KnowledgeBaseId = m.KnowledgeBaseId,
+                    DocumentId = m.DocumentId,
+                    References = m.References,
+                    CreatedAt = m.CreatedAt,
+                    CompletedAt = m.CompletedAt
+                })
+                .ToListAsync();
+
+            return Ok(new ConversationDetailResponse
+            {
+                Id = conversation.Id,
+                Title = conversation.Title,
+                ConversationType = conversation.ConversationType,
+                KnowledgeBaseId = conversation.KnowledgeBaseId,
+                DocumentId = conversation.DocumentId,
+                ModelId = conversation.ModelId,
+                IsPinned = conversation.IsPinned,
+                CreatedAt = conversation.CreatedAt,
+                UpdatedAt = conversation.UpdatedAt,
+                Messages = messages
+            });
+        }
+
+        /// <summary>
+        /// 更新会话标题
+        /// </summary>
+        [HttpPut("conversations/{conversationId}/title")]
+        [ProducesResponseType(typeof(ConversationResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateConversationTitle(
+            string conversationId,
+            [FromBody] UpdateConversationTitleRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Title))
+            {
+                return BadRequest(new ErrorResponse { Message = "标题不能为空" });
+            }
+
+            var userId = GetUserId();
+
+            using var scope = serviceScopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
+
+            var conversation = await dbContext.Conversations
+                .FirstOrDefaultAsync(c => c.Id == conversationId && c.UserId == userId);
+
+            if (conversation == null)
+            {
+                return NotFound(new ErrorResponse { Message = "会话不存在" });
+            }
+
+            conversation.Title = request.Title;
+            conversation.UpdatedAt = DateTimeOffset.UtcNow;
+
+            await dbContext.SaveChangesAsync();
+
+            return Ok(new ConversationResponse
+            {
+                Id = conversation.Id,
+                Title = conversation.Title,
+                ConversationType = conversation.ConversationType,
+                KnowledgeBaseId = conversation.KnowledgeBaseId,
+                DocumentId = conversation.DocumentId,
+                ModelId = conversation.ModelId,
+                IsPinned = conversation.IsPinned,
+                CreatedAt = conversation.CreatedAt,
+                UpdatedAt = conversation.UpdatedAt,
+                MessageCount = await dbContext.ChatMessages.CountAsync(m => m.ConversationId == conversationId)
+            });
+        }
+
+        /// <summary>
+        /// 置顶/取消置顶会话
+        /// </summary>
+        [HttpPut("conversations/{conversationId}/pin")]
+        [ProducesResponseType(typeof(ConversationResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ToggleConversationPin(
+            string conversationId,
+            [FromBody] TogglePinRequest request)
+        {
+            var userId = GetUserId();
+
+            using var scope = serviceScopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
+
+            var conversation = await dbContext.Conversations
+                .FirstOrDefaultAsync(c => c.Id == conversationId && c.UserId == userId);
+
+            if (conversation == null)
+            {
+                return NotFound(new ErrorResponse { Message = "会话不存在" });
+            }
+
+            conversation.IsPinned = request.IsPinned;
+            conversation.UpdatedAt = DateTimeOffset.UtcNow;
+
+            await dbContext.SaveChangesAsync();
+
+            return Ok(new ConversationResponse
+            {
+                Id = conversation.Id,
+                Title = conversation.Title,
+                ConversationType = conversation.ConversationType,
+                KnowledgeBaseId = conversation.KnowledgeBaseId,
+                DocumentId = conversation.DocumentId,
+                ModelId = conversation.ModelId,
+                IsPinned = conversation.IsPinned,
+                CreatedAt = conversation.CreatedAt,
+                UpdatedAt = conversation.UpdatedAt,
+                MessageCount = await dbContext.ChatMessages.CountAsync(m => m.ConversationId == conversationId)
+            });
+        }
+
+        /// <summary>
+        /// 删除会话
+        /// </summary>
+        [HttpDelete("conversations/{conversationId}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteConversation(string conversationId)
+        {
+            var userId = GetUserId();
+
+            using var scope = serviceScopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
+
+            var conversation = await dbContext.Conversations
+                .FirstOrDefaultAsync(c => c.Id == conversationId && c.UserId == userId);
+
+            if (conversation == null)
+            {
+                return NotFound(new ErrorResponse { Message = "会话不存在" });
+            }
+
+            dbContext.Conversations.Remove(conversation);
+            await dbContext.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// 取消流式消息生成
+        /// </summary>
+        [HttpPost("cancel/{messageId}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        public IActionResult CancelStreamingMessage(string messageId)
+        {
+            if (_cancellationTokenSources.TryGetValue(messageId, out var cts))
+            {
+                logger.LogInformation("[Chat] 收到取消请求: MessageId={MessageId}", messageId);
+                cts.Cancel();
+                _cancellationTokenSources.Remove(messageId);
+                return Ok(new { Message = "已取消" });
+            }
+            return NotFound(new ErrorResponse { Message = "消息不存在或已完成" });
+        }
+
         #region 私有辅助方法
 
         /// <summary>
@@ -312,33 +670,67 @@ namespace App.Controllers
             List<AiChatMessage> aiMessages,
             ChatRequest request)
         {
+            // 创建取消令牌
+            var cts = new CancellationTokenSource();
+            _cancellationTokenSources[messageId] = cts;
+
+            var sb = new System.Text.StringBuilder();
+
             try
             {
                 var options = BuildChatOptions(request);
                 options.ModelId = request.Model;
-                var sb = new System.Text.StringBuilder();
+
                 using (AiCallContext.BeginScope(userId, sessionId: conversationId))
                 {
-                    await foreach (var update in chatClient.CompleteStreamingAsync(aiMessages, options))
+                    await foreach (var update in chatClient.CompleteStreamingAsync(aiMessages, options, cts.Token))
                     {
                         if (!string.IsNullOrEmpty(update.Text))
                         {
-                            sb.Append(update.Text);
                             // 清理多余的空行后再发送
-                            var cleanedContent = CleanExtraNewlines(sb.ToString());
+                            var cleanedContent = CleanExtraNewlines(update.Text);
+                            sb.Append(cleanedContent);
                             await SendStreamingChunkAsync(userId, conversationId, messageId, cleanedContent, isComplete: false);
                         }
                     }
-                    // 发送完整内容
-                    var finalContent = CleanExtraNewlines(sb.ToString());
-                    await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
-                    logger.LogInformation("[Chat] 简单聊天完成: MessageId={MessageId}", messageId);
+                }
+
+                // 发送完整内容
+                var finalContent = CleanExtraNewlines(sb.ToString());
+                await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
+
+                // 保存助手消息到数据库
+                await SaveAssistantMessageAsync(messageId, conversationId, finalContent, status: "completed");
+
+                logger.LogInformation("[Chat] 简单聊天完成: MessageId={MessageId}", messageId);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("[Chat] 聊天已取消: MessageId={MessageId}", messageId);
+                var partialContent = sb.ToString();
+                if (!string.IsNullOrEmpty(partialContent))
+                {
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, partialContent, isComplete: true);
+                    await SaveAssistantMessageAsync(messageId, conversationId, partialContent, status: "completed");
+                }
+                else
+                {
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
+                    await SaveAssistantMessageAsync(messageId, conversationId, string.Empty, status: "failed");
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "[Chat] 简单聊天处理失败: MessageId={MessageId}", messageId);
                 await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
+
+                // 保存失败状态
+                await SaveAssistantMessageAsync(messageId, conversationId, string.Empty, status: "failed");
+            }
+            finally
+            {
+                // 清理取消令牌
+                _cancellationTokenSources.Remove(messageId);
             }
         }
 
@@ -353,19 +745,28 @@ namespace App.Controllers
             ChatRequest request,
             List<OmniMind.Contracts.Chat.ChatMessage> baseMessages)
         {
+            // 创建取消令牌
+            var cts = new CancellationTokenSource();
+            _cancellationTokenSources[messageId] = cts;
+
             // 创建新的 scope 以避免 DbContext 被释放
             using var scope = serviceScopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
+
+            var sb = new System.Text.StringBuilder();
 
             try
             {
                 // 1. 生成查询向量并检索相关文档
                 logger.LogInformation("[Chat] 正在检索相关文档: MessageId={MessageId}", messageId);
-                var context = await RetrieveRelevantContextAsync(dbContext, knowledgeBase.Id, request.Message, request.TopK);
+                var context = await RetrieveRelevantContextAsync(dbContext, knowledgeBase.Id, request.Message, request.TopK, cts.Token);
 
                 if (string.IsNullOrEmpty(context))
                 {
-                    await SendStreamingChunkAsync(userId, conversationId, messageId, "知识库中没有找到相关文档", isComplete: true);
+                    var notFoundMsg = "知识库中没有找到相关文档";
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, notFoundMsg, isComplete: true);
+                    // 保存消息到数据库
+                    await SaveAssistantMessageAsync(messageId, conversationId, notFoundMsg, status: "completed");
                     logger.LogWarning("[Chat] 未找到相关文档: MessageId={MessageId}", messageId);
                     return;
                 }
@@ -374,11 +775,10 @@ namespace App.Controllers
                 // 3. 转换为 AI 消息并调用 LLM
                 var aiMessages = ConvertToAiMessages(messages);
                 var options = BuildChatOptions(request);
-                var sb = new System.Text.StringBuilder();
 
                 logger.LogInformation("[Chat] 正在调用 LLM 生成回复: MessageId={MessageId}", messageId);
 
-                await foreach (var update in chatClient.CompleteStreamingAsync(aiMessages, options))
+                await foreach (var update in chatClient.CompleteStreamingAsync(aiMessages, options, cts.Token))
                 {
                     if (update.Text != null)
                     {
@@ -390,12 +790,40 @@ namespace App.Controllers
                 }
                 var finalContent = CleanExtraNewlines(sb.ToString());
                 await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
+
+                // 保存助手消息到数据库
+                await SaveAssistantMessageAsync(messageId, conversationId, finalContent, status: "completed");
+
                 logger.LogInformation("[Chat] RAG 聊天完成: MessageId={MessageId}", messageId);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("[Chat] RAG 聊天已取消: MessageId={MessageId}", messageId);
+                // 取消时保存部分内容
+                var partialContent = sb.ToString();
+                if (!string.IsNullOrEmpty(partialContent))
+                {
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, partialContent, isComplete: true);
+                    await SaveAssistantMessageAsync(messageId, conversationId, partialContent, status: "completed");
+                }
+                else
+                {
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
+                    await SaveAssistantMessageAsync(messageId, conversationId, string.Empty, status: "failed");
+                }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "[Chat] RAG 聊天处理失败: MessageId={MessageId}", messageId);
                 await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
+
+                // 保存失败状态
+                await SaveAssistantMessageAsync(messageId, conversationId, string.Empty, status: "failed");
+            }
+            finally
+            {
+                // 清理取消令牌
+                _cancellationTokenSources.Remove(messageId);
             }
         }
 
@@ -410,19 +838,28 @@ namespace App.Controllers
             ChatRequest request,
             List<OmniMind.Contracts.Chat.ChatMessage> baseMessages)
         {
+            // 创建取消令牌
+            var cts = new CancellationTokenSource();
+            _cancellationTokenSources[messageId] = cts;
+
             // 创建新的 scope 以避免 DbContext 被释放
             using var scope = serviceScopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
+
+            var sb = new System.Text.StringBuilder();
 
             try
             {
                 // 1. 验证文档存在且属于该用户
                 var document = await dbContext.Documents
-                    .FirstOrDefaultAsync(d => d.Id == documentId && d.CreatedByUserId == userId);
+                    .FirstOrDefaultAsync(d => d.Id == documentId && d.CreatedByUserId == userId, cts.Token);
 
                 if (document == null)
                 {
-                    await SendStreamingChunkAsync(userId, conversationId, messageId, "文档不存在", isComplete: true);
+                    var notFoundMsg = "文档不存在";
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, notFoundMsg, isComplete: true);
+                    // 保存消息到数据库
+                    await SaveAssistantMessageAsync(messageId, conversationId, notFoundMsg, status: "completed");
                     logger.LogWarning("[Chat] 文档不存在: DocumentId={DocumentId}", documentId);
                     return;
                 }
@@ -440,17 +877,22 @@ namespace App.Controllers
                         _ => "文件状态异常"
                     };
                     await SendStreamingChunkAsync(userId, conversationId, messageId, statusText, isComplete: true);
+                    // 保存消息到数据库
+                    await SaveAssistantMessageAsync(messageId, conversationId, statusText, status: "completed");
                     logger.LogWarning("[Chat] 文档未就绪: DocumentId={DocumentId}, Status={Status}", documentId, document.Status);
                     return;
                 }
 
                 // 3. 检索相关上下文（从 documents_kb_ collection）
                 logger.LogInformation("[Chat] 正在检索临时文档: MessageId={MessageId}, DocumentId={DocumentId}", messageId, documentId);
-                var context = await RetrieveDocumentContextAsync(dbContext, documentId, request.Message, request.TopK);
+                var context = await RetrieveDocumentContextAsync(dbContext, documentId, request.Message, request.TopK, cts.Token);
 
                 if (string.IsNullOrEmpty(context))
                 {
-                    await SendStreamingChunkAsync(userId, conversationId, messageId, "文档中没有找到相关内容", isComplete: true);
+                    var notFoundMsg = "文档中没有找到相关内容";
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, notFoundMsg, isComplete: true);
+                    // 保存消息到数据库
+                    await SaveAssistantMessageAsync(messageId, conversationId, notFoundMsg, status: "completed");
                     logger.LogWarning("[Chat] 未找到相关文档片段: MessageId={MessageId}", messageId);
                     return;
                 }
@@ -461,11 +903,10 @@ namespace App.Controllers
                 // 4. 转换为 AI 消息并调用 LLM
                 var aiMessages = ConvertToAiMessages(messages);
                 var options = BuildChatOptions(request);
-                var sb = new System.Text.StringBuilder();
 
                 logger.LogInformation("[Chat] 正在调用 LLM 生成回复: MessageId={MessageId}", messageId);
 
-                await foreach (var update in chatClient.CompleteStreamingAsync(aiMessages, options))
+                await foreach (var update in chatClient.CompleteStreamingAsync(aiMessages, options, cts.Token))
                 {
                     if (update.Text != null)
                     {
@@ -478,12 +919,40 @@ namespace App.Controllers
 
                 var finalContent = CleanExtraNewlines(sb.ToString());
                 await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
+
+                // 保存助手消息到数据库
+                await SaveAssistantMessageAsync(messageId, conversationId, finalContent, status: "completed");
+
                 logger.LogInformation("[Chat] 临时文件聊天完成: MessageId={MessageId}", messageId);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("[Chat] 临时文件聊天已取消: MessageId={MessageId}", messageId);
+                // 取消时保存部分内容
+                var partialContent = sb.ToString();
+                if (!string.IsNullOrEmpty(partialContent))
+                {
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, partialContent, isComplete: true);
+                    await SaveAssistantMessageAsync(messageId, conversationId, partialContent, status: "completed");
+                }
+                else
+                {
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
+                    await SaveAssistantMessageAsync(messageId, conversationId, string.Empty, status: "failed");
+                }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "[Chat] 临时文件聊天处理失败: MessageId={MessageId}", messageId);
                 await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
+
+                // 保存失败状态
+                await SaveAssistantMessageAsync(messageId, conversationId, string.Empty, status: "failed");
+            }
+            finally
+            {
+                // 清理取消令牌
+                _cancellationTokenSources.Remove(messageId);
             }
         }
 
@@ -494,9 +963,10 @@ namespace App.Controllers
             OmniMindDbContext dbContext,
             string knowledgeBaseId,
             string query,
-            int topK)
+            int topK,
+            CancellationToken cancellationToken = default)
         {
-            var queryEmbedding = await embeddingGenerator.GenerateAsync(new[] { query });
+            var queryEmbedding = await embeddingGenerator.GenerateAsync(new[] { query }, null, cancellationToken);
             var queryVector = queryEmbedding.First().Vector.ToArray();
 
             // 直接使用 knowledgeBaseId，不要调用 GenerateTenantCollectionName（会在 IVectorStore 内部添加前缀）
@@ -514,7 +984,7 @@ namespace App.Controllers
             var chunks = await dbContext.Chunks
                 .Include(c => c.Document)
                 .Where(c => chunkIds.Contains(c.VectorPointId ?? c.Id))
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             var contextParts = new List<string>();
             foreach (var hit in searchResults)
@@ -537,11 +1007,12 @@ namespace App.Controllers
             OmniMindDbContext dbContext,
             string documentId,
             string query,
-            int topK)
+            int topK,
+            CancellationToken cancellationToken = default)
         {
             // 检查文档的向量点是否存在
             var chunkCount = await dbContext.Chunks
-                .CountAsync(c => c.DocumentId == documentId && c.VectorPointId != null);
+                .CountAsync(c => c.DocumentId == documentId && c.VectorPointId != null, cancellationToken);
 
             logger.LogInformation("[Chat] 文档向量检查: DocumentId={DocumentId}, ChunkCount={ChunkCount}",
                 documentId, chunkCount);
@@ -552,7 +1023,7 @@ namespace App.Controllers
                 throw new InvalidOperationException($"文档尚未完成向量化处理，请稍后再试 (DocumentId: {documentId})");
             }
 
-            var queryEmbedding = await embeddingGenerator.GenerateAsync(new[] { query });
+            var queryEmbedding = await embeddingGenerator.GenerateAsync(new[] { query }, null, cancellationToken);
             var queryVector = queryEmbedding.First().Vector.ToArray();
 
             // 临时文件使用固定的 collection，通过 document_id 过滤器区分文档
@@ -782,6 +1253,54 @@ namespace App.Controllers
                 "video/mp4" or "video/webm" => "video",
                 _ => "file"
             };
+        }
+
+        /// <summary>
+        /// 生成会话标题（基于首条用户消息）
+        /// </summary>
+        private static string GenerateConversationTitle(string firstMessage)
+        {
+            // 移除换行符和多余空格
+            var cleaned = System.Text.RegularExpressions.Regex.Replace(firstMessage, @"\s+", " ").Trim();
+
+            // 限制标题长度
+            if (cleaned.Length <= 50)
+                return cleaned;
+
+            return cleaned.Substring(0, 47) + "...";
+        }
+
+        /// <summary>
+        /// 保存助手消息到数据库
+        /// </summary>
+        private async Task SaveAssistantMessageAsync(
+            string messageId,
+            string conversationId,
+            string content,
+            string status = "completed")
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
+
+            var message = await dbContext.ChatMessages
+                .FirstOrDefaultAsync(m => m.Id == messageId && m.ConversationId == conversationId);
+
+            if (message != null)
+            {
+                message.Content = content;
+                message.Status = status;
+                message.CompletedAt = status == "completed" ? DateTimeOffset.UtcNow : null;
+
+                // 更新会话的更新时间
+                var conversation = await dbContext.Conversations
+                    .FirstOrDefaultAsync(c => c.Id == conversationId);
+                if (conversation != null)
+                {
+                    conversation.UpdatedAt = DateTimeOffset.UtcNow;
+                }
+
+                await dbContext.SaveChangesAsync();
+            }
         }
 
         #endregion

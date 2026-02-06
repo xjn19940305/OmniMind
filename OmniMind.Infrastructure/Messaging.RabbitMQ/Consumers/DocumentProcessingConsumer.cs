@@ -49,7 +49,48 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
                 return;
             }
 
-            // 执行带重试的处理
+            // 0. 检查是否是音视频文件，需要转写
+            // 如果文档已经有 Content（来自转写完成），则正常处理
+            if (string.IsNullOrWhiteSpace(document.Content) && DocumentProcessor.IsAudioOrVideo(document))
+            {
+                logger?.LogInformation("[文档处理] 检测到音视频文件，发送转写请求: DocumentId={DocumentId}, ContentType={ContentType}",
+                    document.Id, document.ContentType);
+
+                // 更新状态为"等待转写"
+                await dbContext.Documents
+                    .Where(x => x.Id == document.Id)
+                    .ExecuteUpdateAsync(d => d
+                        .SetProperty(x => x.Status, DocumentStatus.Pending)
+                        .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), token);
+
+                // 发送转写请求（只传 DocumentId 和 ObjectKey，让 Python 去下载）
+                await SendTranscribeRequestAsync(document, scope, logger, token);
+
+                // 发送等待转写通知
+                var realtimeNotifier = scope.ServiceProvider.GetService<OmniMind.Abstractions.SignalR.IRealtimeNotifier>();
+                if (realtimeNotifier != null)
+                {
+                    await realtimeNotifier.NotifyDocumentProgressAsync(
+                        document.CreatedByUserId,
+                        document.Id,
+                        new OmniMind.Abstractions.SignalR.DocumentProgress
+                        {
+                            DocumentId = document.Id,
+                            Title = document.Title,
+                            Status = "PendingTranscribe",
+                            Progress = 10,
+                            Stage = "检测到音视频文件，正在排队转写..."
+                        });
+                }
+
+                logger?.LogInformation("[文档处理] 转写请求已发送，等待转写完成: DocumentId={DocumentId}",
+                    document.Id);
+
+                // 不继续处理，等待转写完成后再处理
+                return;
+            }
+
+            // 执行带重试的处理（普通文本文档）
             var result = await retryPolicy.ExecuteAsync(
                 documentId: document.Id,
                 currentRetryCount: document.RetryCount,
@@ -61,6 +102,40 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
 
             // 处理结果
             await HandleResultAsync(result, document, dbContext, logger, token);
+        }
+
+        /// <summary>
+        /// 发送转写请求到队列
+        /// </summary>
+        private async Task SendTranscribeRequestAsync(
+            Document document,
+            IServiceScope scope,
+            ILogger? logger,
+            CancellationToken token)
+        {
+            var messagePublisher = scope.ServiceProvider.GetService<IMessagePublisher>();
+            if (messagePublisher == null)
+            {
+                logger?.LogWarning("[文档处理] IMessagePublisher 服务未找到，无法发送转写请求: DocumentId={DocumentId}",
+                    document.Id);
+                return;
+            }
+
+            var transcribeMessage = new Messages.TranscribeRequestMessage
+            {
+                DocumentId = document.Id,
+                KnowledgeBaseId = document.KnowledgeBaseId,
+                SessionId = document.SessionId,
+                ObjectKey = document.ObjectKey ?? string.Empty,
+                FileName = document.Title,
+                ContentType = document.ContentType,
+                UserId = document.CreatedByUserId
+            };
+
+            await messagePublisher.PublishTranscribeRequestAsync(transcribeMessage);
+
+            logger?.LogInformation("[文档处理] 已发送转写请求: DocumentId={DocumentId}, ObjectKey={ObjectKey}",
+                document.Id, document.ObjectKey);
         }
 
         /// <summary>

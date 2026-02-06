@@ -102,6 +102,16 @@
                 <span></span>
                 <span></span>
               </div>
+              <div class="streaming-actions">
+                <el-button
+                  size="small"
+                  type="danger"
+                  :icon="VideoPause"
+                  @click="handleCancelStreaming"
+                >
+                  停止生成
+                </el-button>
+              </div>
             </div>
           </div>
         </div>
@@ -189,10 +199,11 @@ import {
   ChatDotRound,
   Promotion,
   Warning,
+  VideoPause,
 } from "@element-plus/icons-vue";
 import { useChatStore } from "../stores/chat";
 import { useUserStore } from "../stores/user";
-import { chatStream, uploadFile, createSession, checkFileHash, generateSummary } from "../api/chat";
+import { chatStream, uploadFile, checkFileHash, generateSummary, cancelStreamingMessage } from "../api/chat";
 import { getKnowledgeBases } from "../api/knowledge";
 import {
   initSignalR,
@@ -218,12 +229,12 @@ const isSignalRConnected = ref(false);
 const selectedKnowledgeBase = ref<string>("");
 const knowledgeBases = ref<any[]>([]);
 const isGeneratingSummary = ref(false);
+const currentStreamingMessageId = ref<string | null>(null);
 
 const sessions = computed(() => chatStore.sessions);
-const currentSessionId = computed(() => chatStore.currentSessionId);
-const currentMessages = computed(
-  () => chatStore.currentSession?.messages || [],
-);
+const conversations = computed(() => chatStore.conversations);
+const currentSessionId = computed(() => chatStore.currentConversationId);
+const currentMessages = computed(() => chatStore.currentMessages);
 const isStreaming = computed(() => chatStore.isStreaming);
 
 // 是否可以发送消息：必须有输入内容，且文件都已就绪
@@ -388,20 +399,22 @@ function scrollToBottom() {
 }
 
 async function handleNewChat() {
-  await createSession();
-  chatStore.createSession();
+  chatStore.createNewConversation();
   selectedKnowledgeBase.value = "";
+  selectedFiles.value = [];
   scrollToBottom();
 }
 
-function handleSelectSession(sessionId: string) {
-  chatStore.currentSessionId = sessionId;
+async function handleSelectSession(conversationId: string) {
+  await chatStore.selectConversation(conversationId);
   scrollToBottom();
 }
 
-async function handleDeleteSession(sessionId: string) {
-  chatStore.deleteSession(sessionId);
-  ElMessage.success("已删除对话");
+async function handleDeleteSession(conversationId: string) {
+  const success = await chatStore.deleteConversation(conversationId);
+  if (success) {
+    ElMessage.success("已删除对话");
+  }
 }
 
 async function handleFileChange(file: UploadFile) {
@@ -470,19 +483,14 @@ async function handleGenerateSummary() {
 
   const documentId = selectedFiles.value[0].id;
 
-  // 获取或创建会话
-  let sessionId = currentSessionId.value;
-  if (!sessionId) {
-    const newSession = chatStore.createSession();
-    sessionId = newSession.id;
-    console.log("[Chat] 创建新会话:", sessionId);
-  }
+  // 使用当前 conversationId，没有则由后端自动创建
+  const conversationId = currentSessionId.value;
 
   try {
     isGeneratingSummary.value = true;
 
-    // 添加用户消息
-    chatStore.addMessage(sessionId, {
+    // 添加用户消息到本地（乐观更新）
+    chatStore.addMessage(conversationId || 'local', {
       id: Date.now().toString(),
       role: "user",
       content: `请为文档《${selectedFiles.value[0].name}》生成总结`,
@@ -496,14 +504,14 @@ async function handleGenerateSummary() {
 
     // 添加助手消息占位
     const assistantMessageId = `${Date.now()}_assistant`;
-    chatStore.addMessage(sessionId, {
+    chatStore.addMessage(conversationId || 'local', {
       id: assistantMessageId,
       role: "assistant",
       content: "",
       timestamp: new Date().toISOString(),
     });
 
-    const currentSession = sessions.value.find(s => s.id === sessionId);
+    const currentSession = sessions.value.find(s => s.id === conversationId);
     const messageIndex = currentSession?.messages.length - 1 || 0;
 
     // 设置流式状态
@@ -511,14 +519,25 @@ async function handleGenerateSummary() {
     scrollToBottom();
 
     // 调用生成总结 API
-    const response = await generateSummary(documentId, sessionId);
+    const response = await generateSummary(documentId, conversationId || undefined);
+
+    // 记录当前流式消息ID（用于取消）
+    currentStreamingMessageId.value = response.messageId;
 
     // 存储消息映射
     pendingMessages.set(response.messageId, {
-      sessionId,
+      sessionId: response.conversationId,
       messageIndex,
       localMessageId: assistantMessageId,
     });
+
+    // 记录当前流式消息ID（用于取消）
+    currentStreamingMessageId.value = response.messageId;
+
+    // 更新当前会话ID（如果是新会话）
+    if (response.conversationId !== conversationId) {
+      chatStore.currentConversationId = response.conversationId;
+    }
 
     console.log("[Chat] 总结生成请求已发送:", response.messageId);
   } catch (error: any) {
@@ -535,18 +554,28 @@ function handleEnter(event: KeyboardEvent) {
   }
 }
 
+// 取消流式消息生成
+async function handleCancelStreaming() {
+  if (!currentStreamingMessageId.value) return;
+
+  try {
+    await cancelStreamingMessage(currentStreamingMessageId.value);
+    console.log("[Chat] 已取消消息生成:", currentStreamingMessageId.value);
+  } catch (error: any) {
+    console.error("[Chat] 取消失败:", error);
+  } finally {
+    currentStreamingMessageId.value = null;
+    chatStore.isStreaming = false;
+    isGeneratingSummary.value = false;
+  }
+}
+
 async function handleSend() {
   if (!inputMessage.value.trim() && selectedFiles.value.length === 0) return;
   if (isStreaming.value) return;
 
-  // 获取或创建会话
-  let sessionId = currentSessionId.value;
-  if (!sessionId) {
-    const newSession = chatStore.createSession();
-    sessionId = newSession.id;
-    console.log("[Chat] 创建新会话:", sessionId);
-  }
-
+  // 使用当前 conversationId，没有则由后端自动创建
+  const conversationId = currentSessionId.value;
   const content = inputMessage.value.trim();
   const files = [...selectedFiles.value];
 
@@ -554,16 +583,15 @@ async function handleSend() {
   const documentId = selectedFiles.value.length > 0 ? selectedFiles.value[0].id : undefined;
 
   console.log("[Chat] 准备发送消息:", {
-    sessionId,
+    conversationId,
     content,
     documentId,
     selectedFiles: selectedFiles.value.map(f => ({ id: f.id, name: f.name, status: f.status })),
     selectedKnowledgeBase: selectedKnowledgeBase.value,
-    currentSessionId: currentSessionId.value
   });
 
-  // 添加用户消息
-  chatStore.addMessage(sessionId, {
+  // 添加用户消息到本地（乐观更新）
+  chatStore.addMessage(conversationId || 'local', {
     id: Date.now().toString(),
     role: "user",
     content,
@@ -577,7 +605,7 @@ async function handleSend() {
 
   // 添加助手消息占位
   const assistantMessageId = `${Date.now()}_assistant`;
-  chatStore.addMessage(sessionId, {
+  chatStore.addMessage(conversationId || 'local', {
     id: assistantMessageId,
     role: "assistant",
     content: "",
@@ -585,12 +613,11 @@ async function handleSend() {
   });
 
   // 获取正确的 messageIndex - 从当前 session 中获取
-  const currentSession = sessions.value.find(s => s.id === sessionId);
+  const currentSession = sessions.value.find(s => s.id === conversationId);
   const messageIndex = currentSession?.messages.length - 1 || 0;
 
   console.log("[Chat] 助手消息索引:", {
-    sessionId,
-    currentSessionId: currentSessionId.value,
+    conversationId,
     messageIndex,
     messagesLength: currentSession?.messages?.length || 0
   });
@@ -607,7 +634,7 @@ async function handleSend() {
       content,
       selectedKnowledgeBase.value, // 知识库ID（与documentId互斥）
       documentId, // 文件ID（与knowledgeBase互斥）
-      sessionId,
+      conversationId || undefined,
       undefined, // topK 使用默认值
       "deepseek-v3.2", // model 使用默认值
       history,
@@ -615,14 +642,23 @@ async function handleSend() {
 
     // 存储消息映射
     pendingMessages.set(response.messageId, {
-      sessionId,
+      sessionId: response.conversationId,
       messageIndex,
       localMessageId: assistantMessageId,
     });
 
+    // 记录当前流式消息ID（用于取消）
+    currentStreamingMessageId.value = response.messageId;
+
+    // 更新当前会话ID（如果是新会话）
+    if (response.conversationId !== conversationId) {
+      chatStore.currentConversationId = response.conversationId;
+    }
+
     console.log(
       "[Chat] 消息已发送:",
       response.messageId,
+      response.conversationId,
       documentId ? "(使用临时文件)" : selectedKnowledgeBase.value ? "(使用知识库)" : "(默认聊天)",
     );
   } catch (error: any) {
@@ -648,78 +684,50 @@ function handleSignalRChatMessage(data: {
 }) {
   console.log("[Chat] ===== SignalR 消息开始处理 =====");
   console.log("[Chat] 接收到的完整数据:", data);
-  console.log("[Chat] 当前 sessions:", sessions.value.map(s => ({ id: s.id, title: s.title, messagesCount: s.messages.length })));
-  console.log("[Chat] 当前 currentSessionId:", currentSessionId.value);
+  console.log("[Chat] 当前 conversations:", conversations.value.map(c => ({ id: c.id, title: c.title })));
+  console.log("[Chat] 当前 currentConversationId:", currentSessionId.value);
 
   const { conversationId, message } = data;
-  console.log("[Chat] 解构后 - conversationId:", conversationId);
-  console.log("[Chat] 解构后 - message:", message);
   console.log("[Chat] messageId:", message.messageId);
-  console.log("[Chat] content:", message.content);
+  console.log("[Chat] content:", message.content?.substring(0, 50));
   console.log("[Chat] isComplete:", message.isComplete);
 
   const pending = pendingMessages.get(message.messageId);
   console.log("[Chat] 查找 pending message:", pending);
-  console.log("[Chat] pendingMessages 所有键:", Array.from(pendingMessages.keys()));
 
   if (pending) {
     console.log("[Chat] 找到 pending message，开始更新...");
-    console.log("[Chat] 更新信息:", {
-      sessionId: pending.sessionId,
-      messageIndex: pending.messageIndex,
-      sessionIdInStore: sessions.value.find(s => s.id === pending.sessionId)
-    });
-
     chatStore.updateMessage(
       pending.sessionId,
       pending.messageIndex,
-      message.content,
+      message.content || "",
+      message.isComplete,
     );
+    chatStore.updateStreamingMessage(message.messageId, message.content || "", message.isComplete);
     scrollToBottom();
 
     if (message.isComplete) {
       console.log("[Chat] 消息完成，清理 pending");
       chatStore.isStreaming = false;
-      isGeneratingSummary.value = false; // 重置生成总结状态
+      isGeneratingSummary.value = false;
       pendingMessages.delete(message.messageId);
-      ElMessage.success("完成");
+      currentStreamingMessageId.value = null; // 清空流式消息ID
+
+      // 刷新会话列表以更新最后消息时间
+      chatStore.loadConversations();
     }
   } else {
     console.log("[Chat] 未找到 pending message，处理为新消息");
-    console.log("[Chat] 尝试在 conversationId 中查找会话:", conversationId);
 
     chatStore.isStreaming = !message.isComplete;
 
-    const targetSession = sessions.value.find(s => s.id === conversationId);
-    console.log("[Chat] 找到的目标 session:", targetSession);
-
-    if (targetSession) {
-      const existingMessage = targetSession.messages.find(
-        (m) => m.id === message.messageId,
-      );
-      console.log("[Chat] 查找现有消息:", existingMessage);
-
-      if (existingMessage) {
-        console.log("[Chat] 更新现有消息内容");
-        existingMessage.content = message.content;
-      } else {
-        console.log("[Chat] 添加新消息到 session");
-        targetSession.messages.push({
-          id: message.messageId,
-          role: message.role as "user" | "assistant",
-          content: message.content,
-          timestamp: message.timestamp,
-        });
-      }
-    } else {
-      console.warn("[Chat] 未找到对应的 session:", conversationId);
-    }
+    // 使用 store 的方法更新流式消息
+    chatStore.updateStreamingMessage(message.messageId, message.content || "", message.isComplete);
 
     scrollToBottom();
   }
 
   console.log("[Chat] ===== SignalR 消息处理完成 =====");
-  console.log("[Chat] 处理后的 sessions:", sessions.value.map(s => ({ id: s.id, title: s.title, messagesCount: s.messages.length })));
 }
 
 // 初始化 SignalR
@@ -744,6 +752,9 @@ async function initializeSignalR() {
 }
 
 onMounted(async () => {
+  // 加载会话列表
+  await chatStore.loadConversations();
+
   // 加载知识库列表
   await loadKnowledgeBases();
 
@@ -1047,6 +1058,22 @@ onMounted(async () => {
 
   span:nth-child(3) {
     animation-delay: 0.4s;
+  }
+}
+
+.streaming-actions {
+  margin-top: 8px;
+
+  .el-button {
+    border-radius: 6px;
+    font-size: 12px;
+    padding: 4px 12px;
+    height: auto;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(245, 108, 108, 0.3);
+    }
   }
 }
 
