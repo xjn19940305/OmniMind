@@ -1,6 +1,5 @@
 <template>
   <div class="document-list">
-    <!-- 工具栏 -->
     <div class="toolbar">
       <el-upload
         ref="uploadRef"
@@ -16,7 +15,8 @@
         multiple
       >
         <el-button type="primary" :loading="uploading">
-          <el-icon><Upload /></el-icon> 上传文档
+          <el-icon><Upload /></el-icon>
+          上传文档
         </el-button>
       </el-upload>
 
@@ -33,7 +33,6 @@
       </el-input>
     </div>
 
-    <!-- 文档列表 -->
     <div
       v-loading="loading"
       class="list-container"
@@ -69,14 +68,13 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="download">
-                  <el-icon><Download /></el-icon> 下载
-                </el-dropdown-item>
                 <el-dropdown-item command="move">
-                  <el-icon><Sort /></el-icon> 移动
+                  <el-icon><Sort /></el-icon>
+                  移动
                 </el-dropdown-item>
                 <el-dropdown-item command="delete" divided>
-                  <el-icon><Delete /></el-icon> 删除
+                  <el-icon><Delete /></el-icon>
+                  删除
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -87,46 +85,43 @@
       <el-empty v-if="!loading && documents.length === 0" description="暂无文档" />
     </div>
 
-    <!-- 分页 -->
     <el-pagination
       v-if="totalCount > 0"
       v-model:current-page="page"
       v-model:page-size="pageSize"
       :total="totalCount"
       layout="prev, pager, next"
-      @current-change="loadDocuments"
       class="pagination"
+      @current-change="loadDocuments"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadInstance } from 'element-plus'
 import {
-  Upload,
-  Search,
-  Download,
-  Sort,
   Delete,
-  MoreFilled,
   Document,
+  Headset,
+  MoreFilled,
   Picture,
-  VideoCamera,
-  Headset
+  Search,
+  Sort,
+  Upload,
+  VideoCamera
 } from '@element-plus/icons-vue'
-import { getDocuments, moveDocument, deleteDocument } from '../api/document'
-import { useUserStore } from '../stores/user'
+import { deleteDocument, getDocuments } from '../api/document'
+import type { Document as DocType } from '../types'
 import {
   initSignalR,
-  onDocumentProgress,
   isConnected,
-  type DocumentProgress,
+  offDocumentProgress,
+  onDocumentProgress,
+  type DocumentProgress
 } from '../utils/signalr'
-import type { Document as DocType } from '../types'
-
-const userStore = useUserStore()
+import { useUserStore } from '../stores/user'
 
 interface Props {
   knowledgeBaseId: string
@@ -140,6 +135,8 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+const userStore = useUserStore()
+
 const loading = ref(false)
 const uploading = ref(false)
 const documents = ref<DocType[]>([])
@@ -151,40 +148,34 @@ const totalCount = ref(0)
 const draggedDocument = ref<DocType | null>(null)
 const uploadRef = ref<UploadInstance>()
 
-const uploadUrl = computed(() => {
-  return `${import.meta.env.VITE_API_BASE_URL || '/api'}/api/Document/upload`
-})
-
+const uploadUrl = computed(() => `${import.meta.env.VITE_API_BASE_URL || '/api'}/api/Document/upload`)
 const uploadHeaders = computed(() => {
   const token = localStorage.getItem('token')
-  const tenantId = localStorage.getItem('tenantId')
-  const headers: Record<string, string> = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  if (tenantId) headers['X-Tenant-Id'] = tenantId
-  return headers
+  return token ? { Authorization: `Bearer ${token}` } : {}
 })
-
 const uploadData = computed(() => {
   const data: Record<string, string> = {
     knowledgeBaseId: props.knowledgeBaseId
   }
+
   if (props.folderId) {
     data.folderId = props.folderId
   }
+
   return data
 })
 
-// 加载文档列表
 async function loadDocuments() {
   loading.value = true
   try {
-    const { items, total } = await getDocuments({
+    const { items, totalCount: total } = await getDocuments({
       knowledgeBaseId: props.knowledgeBaseId,
       folderId: props.folderId || undefined,
       page: page.value,
       pageSize: pageSize.value,
       keyword: searchKeyword.value || undefined
     })
+
     documents.value = items
     totalCount.value = total
   } catch (error: any) {
@@ -194,53 +185,26 @@ async function loadDocuments() {
   }
 }
 
-// 搜索
 function handleSearch() {
   page.value = 1
   loadDocuments()
 }
 
-// 上传前验证
 function beforeUpload(file: File) {
-  const maxSize = 100 * 1024 * 1024 // 100MB
-  if (file.size > maxSize) {
-    ElMessage.error('文件大小不能超过 100MB')
+  if (file.size > 100 * 1024 * 1024) {
+    ElMessage.error('文件大小不能超过100MB')
     return false
   }
+
   return true
 }
 
-// 文件选择变化
-async function handleFileChange(file: any, fileList: any[]) {
-  // 只处理当前触发事件的文件（避免重复处理整个文件列表）
+async function handleFileChange(file: any) {
   if (file.status !== 'ready') {
     return
   }
 
-  // 验证文件大小
-  const maxSize = 100 * 1024 * 1024 // 100MB
-  if (file.size > maxSize) {
-    ElMessage.error(`${file.name} 文件大小超过 100MB`)
-    return
-  }
-
   uploading.value = true
-
-  // 上传当前文件
-  await uploadSingleFile(file)
-
-  uploading.value = false
-
-  // 检查是否所有文件都已上传完成，如果是则清空文件列表
-  const remainingFiles = uploadRef.value?.uploadFiles || []
-  const allUploaded = remainingFiles.every((f: any) => f.status !== 'ready')
-  if (allUploaded) {
-    uploadRef.value?.clearFiles()
-  }
-}
-
-// 上传单个文件
-async function uploadSingleFile(file: any) {
   try {
     const formData = new FormData()
     formData.append('file', file.raw)
@@ -256,50 +220,38 @@ async function uploadSingleFile(file: any) {
     })
 
     if (!response.ok) {
-      const error = await response.json()
+      const error = await response.json().catch(() => ({ message: '上传失败' }))
       throw new Error(error.message || '上传失败')
     }
 
     ElMessage.success(`${file.name} 上传成功`)
+    await loadDocuments()
   } catch (error: any) {
     ElMessage.error(`${file.name} 上传失败: ${error.message}`)
+  } finally {
+    uploading.value = false
+    uploadRef.value?.clearFiles()
   }
-
-  // 刷新文档列表
-  await loadDocuments()
 }
 
-// 查看文档
 function handleViewDocument(doc: DocType) {
   emit('view', doc)
 }
 
-// 命令处理
 async function handleCommand(command: string, doc: DocType) {
-  switch (command) {
-    case 'download':
-      handleDownload(doc)
-      break
-    case 'move':
-      // 触发移动模式，需要父组件配合
-      ElMessage.info('请拖拽文档到目标文件夹')
-      break
-    case 'delete':
-      await handleDelete(doc)
-      break
+  if (command === 'move') {
+    ElMessage.info('请在目录树中执行移动操作')
+    return
+  }
+
+  if (command === 'delete') {
+    await handleDelete(doc)
   }
 }
 
-// 下载文档
-function handleDownload(doc: DocType) {
-  // TODO: 实现下载逻辑
-  ElMessage.info('下载功能待实现')
-}
-
-// 删除文档
 async function handleDelete(doc: DocType) {
   try {
-    await ElMessageBox.confirm(`确定要删除文档"${doc.title}"吗？`, '提示', {
+    await ElMessageBox.confirm(`确定要删除文档 "${doc.title}" 吗？`, '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
@@ -315,61 +267,45 @@ async function handleDelete(doc: DocType) {
   }
 }
 
-// 拖拽开始
 function handleDragStart(doc: DocType) {
   draggedDocument.value = doc
 }
 
-// 拖放处理
-async function handleDrop(e: DragEvent) {
-  e.preventDefault()
-  // 这个组件不处理拖放，拖放逻辑在文件夹树组件中处理
+function handleDrop(event: DragEvent) {
+  event.preventDefault()
 }
 
-// 获取文件图标
-function getFileIcon(contentType: number) {
-  switch (contentType) {
-    case 1: return Document // PDF
-    case 2: return Document // DOCX
-    case 3: return Document // PPTX
-    case 4: return Document // Markdown
-    case 5: return Document // Web
-    case 6: return Picture // Image
-    case 7: return VideoCamera // Video
-    case 8: return Headset // Audio
-    default: return Document
-  }
+function getFileIcon(contentType: string) {
+  if (contentType.startsWith('image/')) return Picture
+  if (contentType.startsWith('video/')) return VideoCamera
+  if (contentType.startsWith('audio/')) return Headset
+  return Document
 }
 
-// 获取文件图标颜色
-function getFileIconColor(contentType: number) {
-  switch (contentType) {
-    case 1: return '#d14f28' // PDF - 红色
-    case 2: return '#295497' // DOCX - 蓝色
-    case 3: return '#d24726' // PPTX - 橙色
-    case 4: return '#083fa1' // Markdown - 深蓝
-    case 6: return '#67c23a' // Image - 绿色
-    case 7: return '#e6a23c' // Video - 黄色
-    case 8: return '#909399' // Audio - 灰色
-    default: return '#409eff'
-  }
+function getFileIconColor(contentType: string) {
+  if (contentType === 'application/pdf') return '#d14f28'
+  if (contentType.includes('word')) return '#295497'
+  if (contentType.includes('presentation')) return '#d24726'
+  if (contentType.startsWith('text/markdown')) return '#083fa1'
+  if (contentType.startsWith('image/')) return '#67c23a'
+  if (contentType.startsWith('video/')) return '#e6a23c'
+  if (contentType.startsWith('audio/')) return '#909399'
+  return '#409eff'
 }
 
-// 获取状态类型
 function getStatusType(status: number): 'success' | 'info' | 'warning' | 'danger' {
   switch (status) {
-    case 1: return 'info' // Uploaded
-    case 2: return 'warning' // Parsing
-    case 3: return 'info' // Parsed
-    case 4: return 'warning' // Indexing
-    case 5: return 'success' // Indexed
-    case 6: return 'danger' // Failed
+    case 1: return 'info'
+    case 2: return 'warning'
+    case 3: return 'info'
+    case 4: return 'warning'
+    case 5: return 'success'
+    case 6: return 'danger'
     default: return 'info'
   }
 }
 
-// 获取状态标签
-function getStatusLabel(status: number): string {
+function getStatusLabel(status: number) {
   const labels: Record<number, string> = {
     1: '已上传',
     2: '解析中',
@@ -381,99 +317,60 @@ function getStatusLabel(status: number): string {
   return labels[status] || '未知'
 }
 
-// 格式化日期
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
-// 处理文档进度更新
 function handleDocumentProgress(progress: DocumentProgress) {
-  console.log('[DocumentList] 收到文档进度:', progress)
-  console.log('[DocumentList] 当前文档列表:', documents.value)
-
-  const docIndex = documents.value.findIndex(d => d.id === progress.documentId)
+  const docIndex = documents.value.findIndex((doc) => doc.id === progress.documentId)
   if (docIndex === -1) {
-    console.warn('[DocumentList] 找不到文档:', progress.documentId)
     return
   }
 
-  // 更新文档状态 - 使用新数组确保响应式更新
   const statusMap: Record<string, number> = {
-    'Uploaded': 1,
-    'Parsing': 2,
-    'Parsed': 3,
-    'Indexing': 4,
-    'Indexed': 5,
-    'Failed': 6
+    Uploaded: 1,
+    Parsing: 2,
+    Parsed: 3,
+    Indexing: 4,
+    Indexed: 5,
+    Failed: 6
   }
 
-  const newStatus = statusMap[progress.status] || 1
-  console.log(`[DocumentList] 更新文档状态: ${documents.value[docIndex].title} ${documents.value[docIndex].status} -> ${newStatus}`)
-
-  // 创建新数组以确保响应式更新
-  documents.value = documents.value.map((doc, i) =>
-    i === docIndex ? { ...doc, status: newStatus } : doc
+  documents.value = documents.value.map((doc, index) =>
+    index === docIndex ? { ...doc, status: statusMap[progress.status] || doc.status } : doc
   )
-
-  // 如果文档已完成
-  if (progress.status === 'Indexed') {
-    ElMessage.success(`文档 ${progress.title} 已完成处理`)
-  }
-  // 如果文档处理失败
-  else if (progress.status === 'Failed') {
-    ElMessage.error(`文档 ${progress.title} 处理失败：${progress.error || '未知错误'}`)
-  }
-
-  console.log('[DocumentList] 更新后的文档列表:', documents.value)
 }
 
-// 初始化 SignalR
 async function initializeSignalR() {
-  try {
-    const userId = userStore.userInfo?.id || userStore.tenantId
-    if (!userId) {
-      console.warn('[DocumentList] 没有 user ID，无法连接 SignalR')
-      return
-    }
-
-    // 如果已经连接，直接监听即可
-    if (!isConnected()) {
-      await initSignalR(userId)
-    }
-
-    onDocumentProgress(handleDocumentProgress)
-    console.log('[DocumentList] SignalR 文档进度监听已设置')
-  } catch (error) {
-    console.error('[DocumentList] SignalR 初始化失败:', error)
+  if (!userStore.userInfo?.id) {
+    return
   }
+
+  if (!isConnected()) {
+    await initSignalR()
+  }
+
+  onDocumentProgress(handleDocumentProgress)
 }
 
-// 组件挂载时初始化 SignalR
-onMounted(async () => {
-  await initializeSignalR()
-})
-
-// 组件卸载时清理监听器
-onUnmounted(() => {
-  // 注意：这里不调用 stopSignalR，因为连接是全局共享的
-  // 只需要移除监听器即可
-  console.log('[DocumentList] 组件卸载')
-})
-
-// 监听 folderId 变化
 watch(() => props.folderId, () => {
   page.value = 1
   loadDocuments()
 })
 
-// 暴露方法
+onMounted(async () => {
+  await initializeSignalR()
+  await loadDocuments()
+})
+
+onUnmounted(() => {
+  offDocumentProgress()
+})
+
 defineExpose({
   loadDocuments,
   refresh: loadDocuments
 })
-
-// 初始加载
-loadDocuments()
 </script>
 
 <style scoped lang="scss">
@@ -482,78 +379,66 @@ loadDocuments()
   flex-direction: column;
   gap: 16px;
   height: 100%;
+}
 
-  .toolbar {
-    display: flex;
-    gap: 12px;
-    align-items: center;
+.toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
 
-    .search-input {
-      flex: 1;
-      max-width: 300px;
-    }
+.search-input {
+  flex: 1;
+  max-width: 300px;
+}
+
+.list-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 200px;
+}
+
+.document-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+
+  &:hover {
+    border-color: #409eff;
+    background: #f5f7fa;
   }
+}
 
-  .list-container {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 200px;
+.doc-info {
+  flex: 1;
+  min-width: 0;
+}
 
-    .document-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      border: 1px solid #e4e7ed;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s;
-      margin-bottom: 8px;
+.doc-title {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-      &:hover {
-        border-color: #409eff;
-        background: #f5f7fa;
-      }
+.doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #909399;
+}
 
-      .doc-icon {
-        flex-shrink: 0;
-      }
-
-      .doc-info {
-        flex: 1;
-        min-width: 0;
-
-        .doc-title {
-          font-size: 14px;
-          font-weight: 500;
-          margin-bottom: 4px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .doc-meta {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 12px;
-          color: #909399;
-
-          .doc-time {
-            font-size: 12px;
-          }
-        }
-      }
-
-      .doc-actions {
-        flex-shrink: 0;
-      }
-    }
-  }
-
-  .pagination {
-    display: flex;
-    justify-content: center;
-  }
+.pagination {
+  display: flex;
+  justify-content: center;
 }
 </style>

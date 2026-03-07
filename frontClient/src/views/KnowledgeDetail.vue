@@ -752,10 +752,8 @@ const uploadUrl = computed(() => {
 
 const uploadHeaders = computed(() => {
   const token = localStorage.getItem('token')
-  const tenantId = localStorage.getItem('tenantId')
   const headers: Record<string, string> = {}
   if (token) headers['Authorization'] = `Bearer ${token}`
-  if (tenantId) headers['X-Tenant-Id'] = tenantId
   return headers
 })
 
@@ -1259,7 +1257,6 @@ async function handleUpload() {
         method: 'POST',
         headers: {
           ...(uploadHeaders.value['Authorization'] ? { 'Authorization': uploadHeaders.value['Authorization'] } : {}),
-          ...(uploadHeaders.value['X-Tenant-Id'] ? { 'X-Tenant-Id': uploadHeaders.value['X-Tenant-Id'] } : {})
         },
         body: formData
       })
@@ -1547,32 +1544,23 @@ function formatInvitationDate(dateStr: string): string {
 }
 
 // 获取文件图标
-function getFileIcon(contentType: number) {
-  switch (contentType) {
-    case 1: return Document
-    case 2: return Document
-    case 3: return Document
-    case 4: return Document
-    case 5: return Document
-    case 6: return Picture
-    case 7: return VideoCamera
-    case 8: return Headset
-    default: return Document
-  }
+function getFileIcon(contentType: string) {
+  if (contentType.startsWith('image/')) return Picture
+  if (contentType.startsWith('video/')) return VideoCamera
+  if (contentType.startsWith('audio/')) return Headset
+  return Document
 }
 
 // 获取文件图标颜色
-function getFileIconColor(contentType: number) {
-  switch (contentType) {
-    case 1: return '#d14f28'
-    case 2: return '#295497'
-    case 3: return '#d24726'
-    case 4: return '#083fa1'
-    case 6: return '#67c23a'
-    case 7: return '#e6a23c'
-    case 8: return '#909399'
-    default: return '#409eff'
-  }
+function getFileIconColor(contentType: string) {
+  if (contentType === 'application/pdf') return '#d14f28'
+  if (contentType.includes('word')) return '#295497'
+  if (contentType.includes('presentation')) return '#d24726'
+  if (contentType.startsWith('text/markdown')) return '#083fa1'
+  if (contentType.startsWith('image/')) return '#67c23a'
+  if (contentType.startsWith('video/')) return '#e6a23c'
+  if (contentType.startsWith('audio/')) return '#909399'
+  return '#409eff'
 }
 
 // 获取状态类型
@@ -1689,14 +1677,14 @@ function handleDocumentProgress(progress: DocumentProgress) {
 // 初始化 SignalR
 async function initializeSignalR() {
   try {
-    const userId = userStore.userInfo?.id || userStore.tenantId
+    const userId = userStore.userInfo?.id
     if (!userId) {
       console.warn('[KnowledgeDetail] 没有 user ID，无法连接 SignalR')
       return
     }
 
     if (!isConnected()) {
-      await initSignalR(userId)
+      await initSignalR()
     }
 
     onDocumentProgress(handleDocumentProgress)

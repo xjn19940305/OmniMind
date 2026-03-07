@@ -25,7 +25,7 @@ namespace OmniMind.Application
                 await dbContext.Database.MigrateAsync();
                 await CreateTenant();
                 await CreateRole(roleManager);
-                //await CreateUser();
+                await CreateUser();
                 await ImportMasterData();
 
             }

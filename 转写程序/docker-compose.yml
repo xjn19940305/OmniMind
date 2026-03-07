@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: speechtotext_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-change_me}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - speechtotext_network
+    restart: unless-stopped
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api-server
+    container_name: speechtotext_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.ini:/app/config.ini
+      - ./logs:/app/logs
+      - ./temp_audio:/app/temp_audio
+      - ./speaker_workspace:/app/speaker_workspace
+      - model_cache:/root/.cache/modelscope
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Shanghai
+    networks:
+      - speechtotext_network
+    restart: unless-stopped
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: consumer
+    container_name: speechtotext_consumer_1
+    volumes:
+      - ./config.ini:/app/config.ini
+      - ./logs:/app/logs
+      - ./temp_oss_files:/app/temp_oss_files
+      - ./speaker_workspace:/app/speaker_workspace
+      - model_cache:/root/.cache/modelscope
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Shanghai
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      api-server:
+        condition: service_started
+    networks:
+      - speechtotext_network
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+  model_cache:
+
+networks:
+  speechtotext_network:
+    driver: bridge

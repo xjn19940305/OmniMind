@@ -9,9 +9,13 @@ export function generateSummary(documentId: string, conversationId?: string) {
     messageId: string
     conversationId: string
   }>({
-    url: '/api/Test/generate-summary',
+    url: '/api/Chat/chatStream',
     method: 'post',
-    data: { documentId, sessionId: conversationId }
+    data: {
+      documentId,
+      sessionId: conversationId,
+      message: '请基于这个文档生成一份结构化摘要，包含主题、关键信息和行动项。'
+    }
   })
 }
 

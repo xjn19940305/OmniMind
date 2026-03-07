@@ -135,8 +135,6 @@
       </el-descriptions>
     </el-card>
 
-    <el-empty v-else description="请选择或创建知识库" :image-size="200" />
-
     <!-- Create KB Dialog -->
     <el-dialog v-model="showCreateDialog" title="创建知识库" width="500px">
       <el-alert
@@ -408,7 +406,7 @@ const editRules: FormRules = {
 async function loadKnowledgeBases() {
   loading.value = true
   try {
-    const { items, total } = await getKnowledgeBases({
+    const { items, totalCount: total } = await getKnowledgeBases({
       page: page.value,
       pageSize: pageSize.value,
       keyword: searchKeyword.value || undefined,

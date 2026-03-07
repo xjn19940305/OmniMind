@@ -21,10 +21,7 @@ export interface DocumentProgress {
   timestamp: string
 }
 
-/**
- * 初始化 SignalR 连接
- */
-export async function initSignalR(userId: string) {
+export async function initSignalR() {
   if (connection) {
     return connection
   }
@@ -33,141 +30,87 @@ export async function initSignalR(userId: string) {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
   connection = new signalR.HubConnectionBuilder()
-    .withUrl(`${baseUrl}/hubs/ingestion?userId=${userId}`, {
+    .withUrl(`${baseUrl}/hubs/ingestion`, {
       accessTokenFactory: () => token || '',
       skipNegotiation: false,
       withCredentials: true
     })
     .withAutomaticReconnect({
       nextRetryDelayInMilliseconds: (retryContext) => {
-        // 指数退避重连策略
         if (retryContext.previousRetryCount === 0) {
           return 0
         }
-        return Math.min(retryDelay * Math.pow(2, retryContext.previousRetryCount), 30000)
+
+        return Math.min(reconnectDelay * Math.pow(2, retryContext.previousRetryCount), 30000)
       }
     })
     .configureLogging(signalR.LogLevel.Information)
     .build()
 
-  try {
-    await connection.start()
-    console.log('[SignalR] 连接成功')
-  } catch (error) {
-    console.error('[SignalR] 连接失败:', error)
-    connection = null
-    throw error
-  }
-
-  // 监听连接关闭事件
-  connection.onclose(async () => {
-    console.log('[SignalR] 连接已关闭')
+  connection.onclose(() => {
     connection = null
   })
 
-  // 监听重连事件
-  connection.onreconnecting(() => {
-    console.log('[SignalR] 正在重连...')
-  })
-
-  connection.onreconnected(() => {
-    console.log('[SignalR] 重连成功')
-  })
-
+  await connection.start()
   return connection
 }
 
-/**
- * 停止 SignalR 连接
- */
 export async function stopSignalR() {
-  if (connection) {
-    try {
-      await connection.stop()
-      console.log('[SignalR] 连接已停止')
-    } catch (error) {
-      console.error('[SignalR] 停止连接失败:', error)
-    }
+  if (!connection) {
+    return
+  }
+
+  try {
+    await connection.stop()
+  } finally {
     connection = null
   }
 }
 
-/**
- * 获取当前连接
- */
 export function getConnection(): signalR.HubConnection | null {
   return connection
 }
 
-/**
- * 监听文档进度
- */
 export function onDocumentProgress(callback: (progress: DocumentProgress) => void) {
   if (!connection) {
-    console.warn('[SignalR] 连接未建立，无法监听文档进度')
     return
   }
 
-  // SignalR 会将 arguments 数组展开成独立参数传递
-  connection.on('DocumentProgress', (...args: any[]) => {
-    console.log('[SignalR] 文档进度原始参数:', args)
-
-    if (args.length >= 1) {
-      const progress = args[0] as DocumentProgress
-      console.log('[SignalR] 文档进度:', progress)
-      callback(progress)
-    }
+  connection.off('DocumentProgress')
+  connection.on('DocumentProgress', (progress: DocumentProgress) => {
+    callback(progress)
   })
 }
 
-/**
- * 取消监听文档进度
- */
 export function offDocumentProgress() {
-  if (!connection) return
-  connection.off('DocumentProgress')
+  connection?.off('DocumentProgress')
 }
 
-/**
- * 监听聊天消息
- */
 export function onChatMessage(callback: (data: { conversationId: string; message: SignalRMessage }) => void) {
   if (!connection) {
-    console.warn('[SignalR] 连接未建立，无法监听聊天消息')
     return
   }
 
-  // SignalR 会将 arguments 数组展开成独立参数传递
-  // arguments[0] = conversationId, arguments[1] = message
+  connection.off('ChatMessage')
   connection.on('ChatMessage', (...args: any[]) => {
-    console.log('[SignalR] 收到原始参数:', args)
-
     if (args.length >= 2) {
-      const data = {
+      callback({
         conversationId: args[0] as string,
         message: args[1] as SignalRMessage
-      }
-      console.log('[SignalR] 聊天消息:', data)
-      callback(data)
-    } else if (args.length === 1 && typeof args[0] === 'object') {
-      // 兼容处理：如果只有一个参数且是对象
-      console.log('[SignalR] 聊天消息:', args[0])
-      callback(args[0])
+      })
+      return
+    }
+
+    if (args.length === 1 && typeof args[0] === 'object') {
+      callback(args[0] as { conversationId: string; message: SignalRMessage })
     }
   })
 }
 
-/**
- * 取消监听聊天消息
- */
 export function offChatMessage() {
-  if (!connection) return
-  connection.off('ChatMessage')
+  connection?.off('ChatMessage')
 }
 
-/**
- * 检查连接状态
- */
 export function isConnected(): boolean {
   return connection?.state === signalR.HubConnectionState.Connected
 }

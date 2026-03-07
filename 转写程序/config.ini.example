@@ -1,0 +1,45 @@
+[rabbitmq]
+host = 127.0.0.1
+port = 5672
+username = guest
+password = guest
+virtual_host = /
+heartbeat = 600
+connection_timeout = 30
+
+[funasr]
+url = http://localhost:8000/funasr/audio/transcriptions
+api_timeout = 7200
+download_timeout = 7200
+
+[queues]
+transcribe_request = transcribe-request
+transcribe_completed = transcribe-completed
+transcribe_request_routing_key = transcribe.request
+transcribe_completed_routing_key = transcribe.completed
+
+[storage]
+endpoint = localhost:9000
+bucket = omnimind
+access_key_id = minioadmin
+access_key_secret = minioadmin123
+secure = false
+temp_dir = temp_oss_files
+
+[concurrency]
+max_concurrent_tasks = 10
+min_concurrent_tasks = 5
+enable_dynamic_concurrency = true
+
+[resource_limits]
+cpu_threshold = 80
+memory_threshold = 85
+check_interval = 5
+enable_resource_monitoring = true
+pause_duration = 30
+max_task_memory_mb = 100
+
+[audio_storage]
+save_extracted_audio = false
+audio_save_dir = extracted_audio
+organize_by_date = true

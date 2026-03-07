@@ -1,0 +1,64 @@
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 临时音频文件
+temp_audio/
+*.wav
+*.mp3
+*.flac
+*.m4a
+!asr_speaker_demo.wav
+
+# 模型缓存
+.cache/
+model_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
+*.log
+logs/
+
+# 环境变量
+.env
+.env.local
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 说话人数据库备份
+speaker_database_backup.json
+
+# 不再排除 Markdown 文档，保留所有文档
+

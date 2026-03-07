@@ -15,6 +15,7 @@ namespace OmniMind.Persistence.PostgreSql
         public DbSet<Document> Documents { get; set; }
         public DbSet<DocumentVersion> DocumentVersions { get; set; }
         public DbSet<Chunk> Chunks { get; set; }
+        public DbSet<IngestionBatch> IngestionBatches { get; set; }
         public DbSet<IngestionTask> IngestionTasks { get; set; }
         public DbSet<TokenUsageLog> TokenUsageLogs { get; set; }
         public DbSet<UserProfile> UserProfiles { get; set; }
@@ -70,6 +71,13 @@ namespace OmniMind.Persistence.PostgreSql
                 .HasForeignKey(d => d.KnowledgeBaseId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // KnowledgeBase - IngestionBatches 关系
+            modelBuilder.Entity<IngestionBatch>()
+                .HasOne(b => b.KnowledgeBase)
+                .WithMany()
+                .HasForeignKey(b => b.KnowledgeBaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // KnowledgeBase - Folders 关系
             modelBuilder.Entity<Folder>()
                 .HasOne(f => f.KnowledgeBase)
@@ -89,6 +97,13 @@ namespace OmniMind.Persistence.PostgreSql
                 .HasOne(d => d.Folder)
                 .WithMany(f => f.Documents)
                 .HasForeignKey(d => d.FolderId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Document - IngestionBatch 关系
+            modelBuilder.Entity<Document>()
+                .HasOne(d => d.Batch)
+                .WithMany(b => b.Documents)
+                .HasForeignKey(d => d.BatchId)
                 .OnDelete(DeleteBehavior.SetNull);
 
             // Document - IngestionTasks 关系

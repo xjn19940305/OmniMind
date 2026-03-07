@@ -203,7 +203,13 @@ import {
 } from "@element-plus/icons-vue";
 import { useChatStore } from "../stores/chat";
 import { useUserStore } from "../stores/user";
-import { chatStream, uploadFile, checkFileHash, generateSummary, cancelStreamingMessage } from "../api/chat";
+import {
+  chatStream,
+  uploadFile,
+  checkFileHash,
+  generateSummary,
+  cancelStreamingMessage,
+} from "../api/chat";
 import { getKnowledgeBases } from "../api/knowledge";
 import {
   initSignalR,
@@ -240,16 +246,19 @@ const isStreaming = computed(() => chatStore.isStreaming);
 // 是否可以发送消息：必须有输入内容，且文件都已就绪
 const canSendMessage = computed(() => {
   const hasInput = inputMessage.value.trim().length > 0;
-  const hasUnreadyFile = selectedFiles.value.some(f => f.status !== 5); // 5 = Indexed
+  const hasUnreadyFile = selectedFiles.value.some((f) => f.status !== 5);
   const result = hasInput && !hasUnreadyFile && !isStreaming.value;
 
-  // 调试日志
   console.log("[Chat] canSendMessage 检查:", {
     hasInput,
     hasUnreadyFile,
     isStreaming: isStreaming.value,
-    selectedFiles: selectedFiles.value.map(f => ({ id: f.id, name: f.name, status: f.status })),
-    result
+    selectedFiles: selectedFiles.value.map((f) => ({
+      id: f.id,
+      name: f.name,
+      status: f.status,
+    })),
+    result,
   });
 
   return result;
@@ -257,7 +266,8 @@ const canSendMessage = computed(() => {
 
 // 是否可以生成总结：必须有且只有一个已就绪的文件，且没有正在进行的操作
 const canGenerateSummary = computed(() => {
-  const hasOneReadyFile = selectedFiles.value.length === 1 && selectedFiles.value[0].status === 5;
+  const hasOneReadyFile =
+    selectedFiles.value.length === 1 && selectedFiles.value[0].status === 5;
   return hasOneReadyFile && !isStreaming.value && !isGeneratingSummary.value;
 });
 
@@ -265,27 +275,43 @@ const canGenerateSummary = computed(() => {
 function getFileStatusText(status?: number) {
   if (!status) return "上传中...";
   switch (status) {
-    case 1: return "等待处理";
-    case 2: return "解析中...";
-    case 3: return "已解析";
-    case 4: return "索引中...";
-    case 5: return "已就绪";
-    case 6: return "处理失败";
-    default: return "未知状态";
+    case 1:
+      return "等待处理";
+    case 2:
+      return "解析中...";
+    case 3:
+      return "已解析";
+    case 4:
+      return "索引中...";
+    case 5:
+      return "已就绪";
+    case 6:
+      return "处理失败";
+    default:
+      return "未知状态";
   }
 }
 
 // 获取文件状态标签类型
-function getFileStatusType(status?: number): "success" | "warning" | "danger" | "info" | "" {
+function getFileStatusType(
+  status?: number,
+): "success" | "warning" | "danger" | "info" | "" {
   if (!status) return "info";
   switch (status) {
-    case 1: return "info";
-    case 2: return "warning";
-    case 3: return "info";
-    case 4: return "warning";
-    case 5: return "success";
-    case 6: return "danger";
-    default: return "info";
+    case 1:
+      return "info";
+    case 2:
+      return "warning";
+    case 3:
+      return "info";
+    case 4:
+      return "warning";
+    case 5:
+      return "success";
+    case 6:
+      return "danger";
+    default:
+      return "info";
   }
 }
 
@@ -295,42 +321,47 @@ function getKnowledgeBaseName(id: string) {
   return kb?.name || "未知知识库";
 }
 
+function hasKnowledgeBase(id?: string | null) {
+  return !!id && knowledgeBases.value.some((kb) => kb.id === id);
+}
+
 // 处理文档进度更新
 function handleDocumentProgress(progress: DocumentProgress) {
   console.log("[Chat] 收到文档进度:", progress);
   console.log("[Chat] 当前文件列表:", selectedFiles.value);
 
-  const fileIndex = selectedFiles.value.findIndex(f => f.id === progress.documentId);
+  const fileIndex = selectedFiles.value.findIndex(
+    (f) => f.id === progress.documentId,
+  );
   if (fileIndex === -1) {
     console.warn("[Chat] 找不到文件:", progress.documentId);
     return;
   }
 
-  // 更新文件状态 - 使用新数组确保响应式更新
   const statusMap: Record<string, number> = {
-    "Uploaded": 1,
-    "Parsing": 2,
-    "Parsed": 3,
-    "Indexing": 4,
-    "Indexed": 5,
-    "Failed": 6
+    Uploaded: 1,
+    Parsing: 2,
+    Parsed: 3,
+    Indexing: 4,
+    Indexed: 5,
+    Failed: 6,
   };
 
   const newStatus = statusMap[progress.status] || 1;
-  console.log(`[Chat] 更新文件状态: ${selectedFiles.value[fileIndex].status} -> ${newStatus}`);
-
-  // 创建新数组以确保响应式更新
-  selectedFiles.value = selectedFiles.value.map((f, i) =>
-    i === fileIndex ? { ...f, status: newStatus } : f
+  console.log(
+    `[Chat] 更新文件状态: ${selectedFiles.value[fileIndex].status} -> ${newStatus}`,
   );
 
-  // 如果文档已就绪
+  selectedFiles.value = selectedFiles.value.map((f, i) =>
+    i === fileIndex ? { ...f, status: newStatus } : f,
+  );
+
   if (progress.status === "Indexed") {
     ElMessage.success(`文件 ${progress.title} 已就绪，可以开始聊天`);
-  }
-  // 如果文档处理失败
-  else if (progress.status === "Failed") {
-    ElMessage.error(`文件 ${progress.title} 处理失败：${progress.error || "未知错误"}`);
+  } else if (progress.status === "Failed") {
+    ElMessage.error(
+      `文件 ${progress.title} 处理失败：${progress.error || "未知错误"}`,
+    );
   }
 
   console.log("[Chat] 更新后的文件列表:", selectedFiles.value);
@@ -342,6 +373,19 @@ async function loadKnowledgeBases() {
   try {
     const data = await getKnowledgeBases({ pageSize: 100 });
     knowledgeBases.value = data?.items || [];
+
+    if (
+      selectedKnowledgeBase.value &&
+      !hasKnowledgeBase(selectedKnowledgeBase.value)
+    ) {
+      const staleKnowledgeBaseId = selectedKnowledgeBase.value;
+      selectedKnowledgeBase.value = "";
+      console.warn(
+        "[Chat] cleared stale knowledge base selection:",
+        staleKnowledgeBaseId,
+      );
+      ElMessage.warning("当前选择的知识库已失效，已切换为默认聊天");
+    }
   } catch (error) {
     console.error("加载知识库失败:", error);
   }
@@ -350,7 +394,6 @@ async function loadKnowledgeBases() {
 // 知识库变化时记录日志
 function handleKnowledgeBaseChange(value: string | undefined) {
   if (value) {
-    // 选择知识库时，清空已选文件
     selectedFiles.value = [];
     console.log("[Chat] 已选择知识库:", getKnowledgeBaseName(value));
     ElMessage.info(`已切换到知识库：${getKnowledgeBaseName(value)}`);
@@ -381,11 +424,10 @@ function formatTime(timestamp: string) {
 }
 
 function renderMessage(content: string) {
-  // 移除多余的空行，保留一个空行作为段落分隔
   const cleanedContent = content
-    .replace(/\n{3,}/g, '\n\n') // 3个或以上连续换行替换为2个（保留1个空行）
-    .replace(/^\n+/, '') // 移除开头的空行
-    .replace(/\n+$/, ''); // 移除结尾的空行
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^\n+/, "")
+    .replace(/\n+$/, "");
 
   return marked(cleanedContent);
 }
@@ -423,35 +465,34 @@ async function handleFileChange(file: UploadFile) {
   try {
     ElMessage.info(`正在计算 ${file.name} 的哈希值...`);
 
-    // 1. 计算文件哈希
     const fileHash = await calculateFileHash(file.raw);
     console.log("[Chat] 文件哈希:", file.name, fileHash);
 
-    // 2. 检查哈希是否已存在
     ElMessage.info(`正在检查 ${file.name} 是否已上传...`);
     const existingFile = await checkFileHash(fileHash);
 
     if (existingFile) {
-      // 文件已存在，直接复用
       console.log("[Chat] 文件已存在，直接复用:", existingFile);
       selectedKnowledgeBase.value = "";
       selectedFiles.value.push({
         ...existingFile,
-        status: 5 // 已存在的文件直接标记为已就绪
+        status: 5,
       });
       ElMessage.success(`文件 ${file.name} 已存在，已直接复用`);
     } else {
-      // 文件不存在，需要上传
       console.log("[Chat] 文件不存在，开始上传");
       ElMessage.info(`正在上传 ${file.name}...`);
 
-      const uploaded = await uploadFile(file.raw, currentSessionId.value, fileHash);
+      const uploaded = await uploadFile(
+        file.raw,
+        currentSessionId.value,
+        fileHash,
+      );
 
-      // 上传文件时，清空知识库选择
       selectedKnowledgeBase.value = "";
       selectedFiles.value.push({
         ...uploaded,
-        status: 1 // 初始状态为 Uploaded
+        status: 1,
       });
 
       ElMessage.success(`已添加 ${file.name}，正在处理中...`);
@@ -482,15 +523,14 @@ async function handleGenerateSummary() {
   }
 
   const documentId = selectedFiles.value[0].id;
-
-  // 使用当前 conversationId，没有则由后端自动创建
   const conversationId = currentSessionId.value;
+  const localConversationId = conversationId || `temp-${Date.now()}`;
+  chatStore.ensureSession(localConversationId, "新对话");
 
   try {
     isGeneratingSummary.value = true;
 
-    // 添加用户消息到本地（乐观更新）
-    chatStore.addMessage(conversationId || 'local', {
+    chatStore.addMessage(localConversationId, {
       id: Date.now().toString(),
       role: "user",
       content: `请为文档《${selectedFiles.value[0].name}》生成总结`,
@@ -498,44 +538,36 @@ async function handleGenerateSummary() {
       files: [...selectedFiles.value],
     });
 
-    // 清空输入
     inputMessage.value = "";
     selectedFiles.value = [];
 
-    // 添加助手消息占位
     const assistantMessageId = `${Date.now()}_assistant`;
-    chatStore.addMessage(conversationId || 'local', {
+    chatStore.addMessage(localConversationId, {
       id: assistantMessageId,
       role: "assistant",
       content: "",
       timestamp: new Date().toISOString(),
     });
 
-    const currentSession = sessions.value.find(s => s.id === conversationId);
+    const currentSession = sessions.value.find((s) => s.id === localConversationId);
     const messageIndex = currentSession?.messages.length - 1 || 0;
 
-    // 设置流式状态
     chatStore.isStreaming = true;
     scrollToBottom();
 
-    // 调用生成总结 API
     const response = await generateSummary(documentId, conversationId || undefined);
 
-    // 记录当前流式消息ID（用于取消）
-    currentStreamingMessageId.value = response.messageId;
-
-    // 存储消息映射
     pendingMessages.set(response.messageId, {
       sessionId: response.conversationId,
       messageIndex,
       localMessageId: assistantMessageId,
     });
 
-    // 记录当前流式消息ID（用于取消）
     currentStreamingMessageId.value = response.messageId;
 
-    // 更新当前会话ID（如果是新会话）
-    if (response.conversationId !== conversationId) {
+    if (response.conversationId !== localConversationId) {
+      chatStore.promoteSession(localConversationId, response.conversationId);
+    } else {
       chatStore.currentConversationId = response.conversationId;
     }
 
@@ -574,24 +606,41 @@ async function handleSend() {
   if (!inputMessage.value.trim() && selectedFiles.value.length === 0) return;
   if (isStreaming.value) return;
 
-  // 使用当前 conversationId，没有则由后端自动创建
   const conversationId = currentSessionId.value;
+  const localConversationId = conversationId || `temp-${Date.now()}`;
   const content = inputMessage.value.trim();
   const files = [...selectedFiles.value];
+  chatStore.ensureSession(localConversationId, content.slice(0, 20) || "新对话");
 
-  // 获取第一个文件的ID（如果有）- 在清空之前获取
-  const documentId = selectedFiles.value.length > 0 ? selectedFiles.value[0].id : undefined;
+  const knowledgeBaseId = hasKnowledgeBase(selectedKnowledgeBase.value)
+    ? selectedKnowledgeBase.value
+    : undefined;
+
+  if (selectedKnowledgeBase.value && !knowledgeBaseId) {
+    console.warn(
+      "[Chat] blocked stale knowledge base ID:",
+      selectedKnowledgeBase.value,
+    );
+    selectedKnowledgeBase.value = "";
+    ElMessage.warning("当前选择的知识库不存在或无权访问，已切换为默认聊天");
+  }
+
+  const documentId =
+    selectedFiles.value.length > 0 ? selectedFiles.value[0].id : undefined;
 
   console.log("[Chat] 准备发送消息:", {
-    conversationId,
+    conversationId: localConversationId,
     content,
     documentId,
-    selectedFiles: selectedFiles.value.map(f => ({ id: f.id, name: f.name, status: f.status })),
-    selectedKnowledgeBase: selectedKnowledgeBase.value,
+    selectedFiles: selectedFiles.value.map((f) => ({
+      id: f.id,
+      name: f.name,
+      status: f.status,
+    })),
+    selectedKnowledgeBase: knowledgeBaseId,
   });
 
-  // 添加用户消息到本地（乐观更新）
-  chatStore.addMessage(conversationId || 'local', {
+  chatStore.addMessage(localConversationId, {
     id: Date.now().toString(),
     role: "user",
     content,
@@ -599,59 +648,53 @@ async function handleSend() {
     files,
   });
 
-  // 清空输入
   inputMessage.value = "";
   selectedFiles.value = [];
 
-  // 添加助手消息占位
   const assistantMessageId = `${Date.now()}_assistant`;
-  chatStore.addMessage(conversationId || 'local', {
+  chatStore.addMessage(localConversationId, {
     id: assistantMessageId,
     role: "assistant",
     content: "",
     timestamp: new Date().toISOString(),
   });
 
-  // 获取正确的 messageIndex - 从当前 session 中获取
-  const currentSession = sessions.value.find(s => s.id === conversationId);
+  const currentSession = sessions.value.find((s) => s.id === localConversationId);
   const messageIndex = currentSession?.messages.length - 1 || 0;
 
   console.log("[Chat] 助手消息索引:", {
-    conversationId,
+    conversationId: localConversationId,
     messageIndex,
-    messagesLength: currentSession?.messages?.length || 0
+    messagesLength: currentSession?.messages?.length || 0,
   });
 
-  // 设置流式状态
   chatStore.isStreaming = true;
   scrollToBottom();
 
   try {
     const history = buildHistory();
 
-    // 调用统一聊天接口
     const response = await chatStream(
       content,
-      selectedKnowledgeBase.value, // 知识库ID（与documentId互斥）
-      documentId, // 文件ID（与knowledgeBase互斥）
+      knowledgeBaseId,
+      documentId,
       conversationId || undefined,
-      undefined, // topK 使用默认值
-      "deepseek-v3.2", // model 使用默认值
+      undefined,
+      "deepseek-v3.2",
       history,
     );
 
-    // 存储消息映射
     pendingMessages.set(response.messageId, {
       sessionId: response.conversationId,
       messageIndex,
       localMessageId: assistantMessageId,
     });
 
-    // 记录当前流式消息ID（用于取消）
     currentStreamingMessageId.value = response.messageId;
 
-    // 更新当前会话ID（如果是新会话）
-    if (response.conversationId !== conversationId) {
+    if (response.conversationId !== localConversationId) {
+      chatStore.promoteSession(localConversationId, response.conversationId);
+    } else {
       chatStore.currentConversationId = response.conversationId;
     }
 
@@ -659,7 +702,11 @@ async function handleSend() {
       "[Chat] 消息已发送:",
       response.messageId,
       response.conversationId,
-      documentId ? "(使用临时文件)" : selectedKnowledgeBase.value ? "(使用知识库)" : "(默认聊天)",
+      documentId
+        ? "(使用文件)"
+        : knowledgeBaseId
+          ? "(使用知识库)"
+          : "(默认聊天)",
     );
   } catch (error: any) {
     chatStore.isStreaming = false;
@@ -684,10 +731,13 @@ function handleSignalRChatMessage(data: {
 }) {
   console.log("[Chat] ===== SignalR 消息开始处理 =====");
   console.log("[Chat] 接收到的完整数据:", data);
-  console.log("[Chat] 当前 conversations:", conversations.value.map(c => ({ id: c.id, title: c.title })));
+  console.log(
+    "[Chat] 当前 conversations:",
+    conversations.value.map((c) => ({ id: c.id, title: c.title })),
+  );
   console.log("[Chat] 当前 currentConversationId:", currentSessionId.value);
 
-  const { conversationId, message } = data;
+  const { message } = data;
   console.log("[Chat] messageId:", message.messageId);
   console.log("[Chat] content:", message.content?.substring(0, 50));
   console.log("[Chat] isComplete:", message.isComplete);
@@ -703,7 +753,11 @@ function handleSignalRChatMessage(data: {
       message.content || "",
       message.isComplete,
     );
-    chatStore.updateStreamingMessage(message.messageId, message.content || "", message.isComplete);
+    chatStore.updateStreamingMessage(
+      message.messageId,
+      message.content || "",
+      message.isComplete,
+    );
     scrollToBottom();
 
     if (message.isComplete) {
@@ -711,7 +765,7 @@ function handleSignalRChatMessage(data: {
       chatStore.isStreaming = false;
       isGeneratingSummary.value = false;
       pendingMessages.delete(message.messageId);
-      currentStreamingMessageId.value = null; // 清空流式消息ID
+      currentStreamingMessageId.value = null;
 
       // 刷新会话列表以更新最后消息时间
       chatStore.loadConversations();
@@ -720,9 +774,11 @@ function handleSignalRChatMessage(data: {
     console.log("[Chat] 未找到 pending message，处理为新消息");
 
     chatStore.isStreaming = !message.isComplete;
-
-    // 使用 store 的方法更新流式消息
-    chatStore.updateStreamingMessage(message.messageId, message.content || "", message.isComplete);
+    chatStore.updateStreamingMessage(
+      message.messageId,
+      message.content || "",
+      message.isComplete,
+    );
 
     scrollToBottom();
   }
@@ -733,13 +789,13 @@ function handleSignalRChatMessage(data: {
 // 初始化 SignalR
 async function initializeSignalR() {
   try {
-    const userId = userStore.userInfo?.id || userStore.tenantId;
+    const userId = userStore.userInfo?.id;
     if (!userId) {
       console.warn("[Chat] 没有 user ID，无法连接 SignalR");
       return;
     }
 
-    await initSignalR(userId);
+    await initSignalR();
     isSignalRConnected.value = true;
     onChatMessage(handleSignalRChatMessage);
     onDocumentProgress(handleDocumentProgress);
@@ -752,25 +808,16 @@ async function initializeSignalR() {
 }
 
 onMounted(async () => {
-  // 加载会话列表
   await chatStore.loadConversations();
-
-  // 加载知识库列表
   await loadKnowledgeBases();
-
-  // 初始化 SignalR
   await initializeSignalR();
 
-  // 定期检查连接状态
   const checkInterval = setInterval(() => {
     isSignalRConnected.value = isConnected();
   }, 5000);
 
   onUnmounted(() => {
-    // 清除 SignalR 连接检查定时器
     clearInterval(checkInterval);
-
-    // 停止 SignalR
     stopSignalR();
   });
 });

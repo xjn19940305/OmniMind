@@ -1,0 +1,27 @@
+[Unit]
+Description=FunASR API Server - 语音识别服务
+After=network.target
+
+[Service]
+Type=simple
+User=wuyou
+Group=wuyou
+WorkingDirectory=/home/wuyou/app/funasr_server
+Environment="PATH=/home/wuyou/app/funasr_server/venv310/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/home/wuyou/app/funasr_server/venv310/bin/python api_server.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/wuyou/app/funasr_server/logs/api_server.log
+StandardError=append:/home/wuyou/app/funasr_server/logs/api_server.log
+
+# 资源限制
+LimitNOFILE=65535
+LimitNPROC=65535
+
+# 超时设置（模型加载可能需要较长时间）
+TimeoutStartSec=600
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

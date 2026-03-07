@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using OmniMind.Abstractions.SignalR;
 using OmniMind.Abstractions.Storage;
+using OmniMind.Api.Extensions;
 using OmniMind.Api.Swaggers;
 using OmniMind.Contracts.Chat;
 using OmniMind.Contracts.Common;
@@ -12,7 +13,6 @@ using OmniMind.Ingestion;
 using OmniMind.Messages;
 using OmniMind.Messaging.Abstractions;
 using OmniMind.Persistence.PostgreSql;
-using OmniMind.Vector.Qdrant;
 using AiChatMessage = Microsoft.Extensions.AI.ChatMessage;
 using AiChatRole = Microsoft.Extensions.AI.ChatRole;
 using IRealtimeNotifier = OmniMind.Abstractions.SignalR.IRealtimeNotifier;
@@ -78,6 +78,27 @@ namespace App.Controllers
             using var scope = serviceScopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
 
+            KnowledgeBase? validatedKnowledgeBase = null;
+            if (!string.IsNullOrWhiteSpace(request.KnowledgeBaseId))
+            {
+                validatedKnowledgeBase = await dbContext.KnowledgeBases
+                    .FirstOrDefaultAsync(kb => kb.Id == request.KnowledgeBaseId);
+
+                if (validatedKnowledgeBase == null)
+                {
+                    return BadRequest(new ErrorResponse { Message = "知识库不存在" });
+                }
+
+                var auth = await dbContext.AuthorizeKnowledgeBaseAsync(validatedKnowledgeBase, userId, KnowledgeBasePermission.View);
+                if (!auth.HasAccess)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ErrorResponse
+                    {
+                        Message = auth.Message ?? "无权访问此知识库"
+                    });
+                }
+            }
+
             // 初始化会话并保存消息
             var (conversationId, assistantMessageId) = await InitializeConversationAsync(dbContext, userId, request);
 
@@ -110,6 +131,15 @@ namespace App.Controllers
                     if (knowledgeBase == null)
                     {
                         return BadRequest(new ErrorResponse { Message = "知识库不存在" });
+                    }
+
+                    var auth = await dbContext.AuthorizeKnowledgeBaseAsync(knowledgeBase, userId, KnowledgeBasePermission.View);
+                    if (!auth.HasAccess)
+                    {
+                        return StatusCode(StatusCodes.Status403Forbidden, new ErrorResponse
+                        {
+                            Message = auth.Message ?? "无权访问此知识库"
+                        });
                     }
 
                     // 后台处理 RAG 聊天（使用 Task.Run 确保独立执行）
@@ -970,7 +1000,7 @@ namespace App.Controllers
             var queryVector = queryEmbedding.First().Vector.ToArray();
 
             // 直接使用 knowledgeBaseId，不要调用 GenerateTenantCollectionName（会在 IVectorStore 内部添加前缀）
-            var searchResults = await vectorStore.SearchAsync(knowledgeBaseId, queryVector, new VectorSearchOptions(
+            var searchResults = await vectorStore.SearchAsync(VectorCollectionName.BuildKnowledgeBaseCollectionName(knowledgeBaseId), queryVector, new VectorSearchOptions(
                 Limit: topK,
                 WithPayload: true
             ));
@@ -1027,7 +1057,15 @@ namespace App.Controllers
             var queryVector = queryEmbedding.First().Vector.ToArray();
 
             // 临时文件使用固定的 collection，通过 document_id 过滤器区分文档
-            var collectionName = string.Empty;
+            var document = await dbContext.Documents
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == documentId, cancellationToken);
+            if (document == null || string.IsNullOrWhiteSpace(document.SessionId))
+            {
+                throw new InvalidOperationException($"鏂囨。涓嶅瓨鍦ㄦ垨缂哄皯 SessionId (DocumentId: {documentId})");
+            }
+
+            var collectionName = VectorCollectionName.BuildSessionCollectionName(document.SessionId);
 
             logger.LogInformation("[Chat] 临时文件检索: DocumentId={DocumentId}, Collection={Collection}",
                 documentId, string.IsNullOrEmpty(collectionName) ? "documents_kb_" : collectionName);

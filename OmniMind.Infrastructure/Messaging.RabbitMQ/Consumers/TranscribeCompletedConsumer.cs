@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json.Linq;
 using OmniMind.Abstractions.Storage;
 using OmniMind.Entities;
 using OmniMind.Enums;
@@ -11,8 +12,7 @@ using OmniMind.Persistence.PostgreSql;
 namespace OmniMind.Messaging.RabbitMQ.Consumers
 {
     /// <summary>
-    /// 转写完成消费者
-    /// 处理 Python 服务转写完成后的文档，继续执行切片和向量化
+    /// Handles completed transcription messages from the external ASR service.
     /// </summary>
     public class TranscribeCompletedConsumer : RabbitMQMessageConsumer
     {
@@ -39,7 +39,9 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
                 stoppingToken);
         }
 
-        private async Task HandleTranscribeCompletedAsync(Messages.TranscribeCompletedMessage message, CancellationToken token)
+        private async Task HandleTranscribeCompletedAsync(
+            Messages.TranscribeCompletedMessage message,
+            CancellationToken token)
         {
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
@@ -50,86 +52,94 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
 
             if (document == null)
             {
-                logger?.LogWarning("[转写完成] 文档不存在: DocumentId={DocumentId}", message.DocumentId);
+                logger?.LogWarning(
+                    "[TranscribeCompleted] Document not found. DocumentId={DocumentId}",
+                    message.DocumentId);
                 return;
             }
 
-            logger?.LogInformation("[转写完成] 开始处理: DocumentId={DocumentId}, Status={Status}",
-                message.DocumentId, message.Status);
+            logger?.LogInformation(
+                "[TranscribeCompleted] Start handling callback. DocumentId={DocumentId}, Status={Status}",
+                message.DocumentId,
+                message.Status);
 
-            if (message.Status == Messages.TranscribeStatus.Failed || message.Status == Messages.TranscribeStatus.Timeout)
+            if (message.Status == Messages.TranscribeStatus.Failed ||
+                message.Status == Messages.TranscribeStatus.Timeout)
             {
-                // 转写失败，更新文档状态
                 await dbContext.Documents
                     .Where(x => x.Id == document.Id)
                     .ExecuteUpdateAsync(d => d
                         .SetProperty(x => x.Status, DocumentStatus.Failed)
-                        .SetProperty(x => x.Error, message.Error ?? "转写失败")
+                        .SetProperty(x => x.Error, message.Error ?? "Transcription failed")
                         .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), token);
 
-                logger?.LogError("[转写完成] 转写失败: DocumentId={DocumentId}, Error={Error}",
-                    message.DocumentId, message.Error);
+                logger?.LogError(
+                    "[TranscribeCompleted] Transcription failed. DocumentId={DocumentId}, Error={Error}",
+                    message.DocumentId,
+                    message.Error);
                 return;
             }
 
-            // 转写成功，下载转写结果文本
             var objectStorage = scope.ServiceProvider.GetRequiredService<IObjectStorage>();
+            string rawTranscriptionPayload;
             string transcribedText;
 
             try
             {
-                logger?.LogInformation("[转写完成] 正在下载转写结果: ObjectKey={ObjectKey}",
+                logger?.LogInformation(
+                    "[TranscribeCompleted] Downloading transcription payload. ObjectKey={ObjectKey}",
                     message.TranscribedTextObjectKey);
 
-                using var stream = await objectStorage.GetAsync(message.TranscribedTextObjectKey);
+                using var stream = await objectStorage.GetAsync(message.TranscribedTextObjectKey, token);
                 using var reader = new StreamReader(stream);
-                transcribedText = await reader.ReadToEndAsync(token);
+                rawTranscriptionPayload = await reader.ReadToEndAsync(token);
 
-                if (string.IsNullOrWhiteSpace(transcribedText))
+                if (string.IsNullOrWhiteSpace(rawTranscriptionPayload))
                 {
-                    throw new InvalidOperationException("转写结果文本为空");
+                    throw new InvalidOperationException("Transcription payload is empty");
                 }
 
-                logger?.LogInformation("[转写完成] 转写结果下载成功: TextLength={TextLength}",
+                transcribedText = TryExtractTranscriptionText(rawTranscriptionPayload, out var extractedText)
+                    ? extractedText
+                    : rawTranscriptionPayload;
+
+                logger?.LogInformation(
+                    "[TranscribeCompleted] Transcription payload downloaded. TextLength={TextLength}",
                     transcribedText.Length);
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "[转写完成] 下载转写结果失败: DocumentId={DocumentId}",
+                logger?.LogError(
+                    ex,
+                    "[TranscribeCompleted] Failed to download transcription payload. DocumentId={DocumentId}",
                     message.DocumentId);
 
                 await dbContext.Documents
                     .Where(x => x.Id == document.Id)
                     .ExecuteUpdateAsync(d => d
                         .SetProperty(x => x.Status, DocumentStatus.Failed)
-                        .SetProperty(x => x.Error, $"下载转写结果失败: {ex.Message}")
+                        .SetProperty(x => x.Error, $"Failed to download transcription payload: {ex.Message}")
                         .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), token);
                 return;
             }
 
-            // 将转写文本保存到 Content 字段
             document.Content = transcribedText;
-            document.Status = DocumentStatus.Parsed; // 标记为已解析，可以继续处理
-
-            // 保存更改到数据库
+            document.Transcription = rawTranscriptionPayload;
+            document.Status = DocumentStatus.Parsed;
+            document.UpdatedAt = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(token);
 
-            // 执行带重试的处理（切片和向量化）
             var result = await retryPolicy.ExecuteAsync(
                 documentId: document.Id,
                 currentRetryCount: document.RetryCount,
                 processAction: () => ProcessWithRetryAsync(scope, document, dbContext, logger, token),
                 republishAction: () => RepublishMessageAsync(message, scope, logger, token),
                 logger: logger,
-                cancellationToken: token
-            );
+                cancellationToken: token);
 
             await HandleResultAsync(result, document, dbContext, logger, token);
         }
 
-        /// <summary>
-        /// 处理文档（切片和向量化）
-        /// </summary>
         private async Task ProcessWithRetryAsync(
             IServiceScope scope,
             Document document,
@@ -137,15 +147,12 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
             ILogger? logger,
             CancellationToken token)
         {
-            // 更新重试次数
             document.RetryCount++;
             document.LastRetryAt = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(token);
 
-            // 执行实际处理（切片和向量化）
             await DocumentProcessor.ProcessDocumentAsync(scope, document, dbContext, logger);
 
-            // 成功后重置重试次数
             await dbContext.Documents
                 .Where(x => x.Id == document.Id)
                 .ExecuteUpdateAsync(d => d
@@ -153,9 +160,6 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
                     .SetProperty(x => x.LastRetryAt, (DateTimeOffset?)null), token);
         }
 
-        /// <summary>
-        /// 重新发布消息到队列
-        /// </summary>
         private async Task RepublishMessageAsync(
             Messages.TranscribeCompletedMessage originalMessage,
             IServiceScope scope,
@@ -165,21 +169,19 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
             var messagePublisher = scope.ServiceProvider.GetService<IMessagePublisher>();
             if (messagePublisher == null)
             {
-                logger?.LogWarning("[转写完成] IMessagePublisher 服务未找到，无法重新发布消息: DocumentId={DocumentId}",
+                logger?.LogWarning(
+                    "[TranscribeCompleted] IMessagePublisher not found. DocumentId={DocumentId}",
                     originalMessage.DocumentId);
                 return;
             }
 
-            // 重新发布转写完成消息
             await messagePublisher.PublishTranscribeCompletedAsync(originalMessage, token);
 
-            logger?.LogInformation("[转写完成] 消息已重新入队: DocumentId={DocumentId}",
+            logger?.LogInformation(
+                "[TranscribeCompleted] Message requeued. DocumentId={DocumentId}",
                 originalMessage.DocumentId);
         }
 
-        /// <summary>
-        /// 处理重试结果
-        /// </summary>
         private async Task HandleResultAsync(
             RetryResult result,
             Document document,
@@ -190,8 +192,8 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
             if (result == RetryResult.Failed || result == RetryResult.MaxRetriesExceeded)
             {
                 var errorMsg = result == RetryResult.MaxRetriesExceeded
-                    ? $"转写后处理已重试 {retryPolicy.MaxRetryCount} 次仍失败"
-                    : "转写后处理失败";
+                    ? $"Post-transcription processing failed after {retryPolicy.MaxRetryCount} retries"
+                    : "Post-transcription processing failed";
 
                 await dbContext.Documents
                     .Where(x => x.Id == document.Id)
@@ -200,7 +202,38 @@ namespace OmniMind.Messaging.RabbitMQ.Consumers
                         .SetProperty(x => x.Error, errorMsg)
                         .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), token);
 
-                logger?.LogError("[转写完成] 处理失败: DocumentId={DocumentId}", document.Id);
+                logger?.LogError(
+                    "[TranscribeCompleted] Processing failed. DocumentId={DocumentId}",
+                    document.Id);
+            }
+        }
+
+        private static bool TryExtractTranscriptionText(
+            string payload,
+            out string transcriptionText)
+        {
+            transcriptionText = string.Empty;
+
+            try
+            {
+                var token = JToken.Parse(payload);
+                if (token.Type != JTokenType.Object)
+                {
+                    return false;
+                }
+
+                transcriptionText =
+                    token.Value<string>("fullText")
+                    ?? token.Value<string>("text")
+                    ?? token.Value<string>("Text")
+                    ?? token["data"]?["text"]?.Value<string>()
+                    ?? string.Empty;
+
+                return !string.IsNullOrWhiteSpace(transcriptionText);
+            }
+            catch
+            {
+                return false;
             }
         }
     }

@@ -1,237 +1,150 @@
 # OmniMind
-企业级多模态AI知识引擎
-## Enterprise Multimodal AI Knowledge Engine
 
-> OmniMind 是一套面向企业级场景打造的 **多模态 AI 知识引擎**，致力于让任何数据都能被 AI 理解、检索与推理，从而构建真正可落地的企业认知基础设施（Enterprise Cognitive Infrastructure）。
+企业级多模态知识库平台。
 
----
+## 产品定位
 
-# 🚀 Why OmniMind
+OmniMind 当前版本聚焦一个清晰边界：
 
-在大模型时代，企业真正的壁垒不再是模型本身，而是：
+- 知识库管理
+- 成员协作与邀请
+- 文件夹与文档管理
+- 多模态内容摄取
+- RAG 问答
+- 文档处理进度实时通知
 
-👉 **如何让 AI 理解企业内部知识。**
+这不是一个“企业智能操作系统”，也不是已经完成的 Agent 编排平台。当前仓库的目标是把知识库产品做成一个可交付、可维护、接口一致的企业级 v1。
 
-传统知识库存在明显问题：
+## 当前能力
 
-- 无法处理多模态数据（文档 / 图片 / 音视频）
-- 检索精度低
-- 缺乏上下文理解
-- 无法支持复杂推理
-- 权限不可控
-- 难以企业化部署
+### 1. 知识库协作
 
-**OmniMind 的目标不是“文件问答工具”。**
+- 支持创建知识库
+- 支持 `Private / Internal / Public` 可见性
+- 支持成员和邀请管理
+- 权限按知识库级别控制
 
-而是：
+### 2. 多模态摄取
 
-# 👉 构建企业级 AI 认知引擎。
+当前版本的主链路分两层：
 
----
+- 已完成并可直接进入解析与索引：`PDF`、`DOCX`、`PPTX`、`Markdown`、`TXT`
+- 已接入统一文档生命周期，但依赖外部能力补全识别内容：
+  - 图片：需要 OCR 服务回流
+  - 音频：需要 ASR 转写服务回流
+  - 视频：当前按“抽音频 -> 转写”路线处理
+- 网页链接：可作为文档入口创建，但抓取与正文提取仍需继续补完
 
-# 🧠 Core Capabilities
+### 3. RAG 问答
 
-## ✅ Multimodal Understanding
+- 基于知识库文档检索增强回答
+- 支持临时文件问答
+- 支持会话历史与流式输出
 
-OmniMind 原生支持多模态数据解析与理解：
+### 4. 实时处理进度
 
-### 📄 文档
-- PDF / Word / PPT / Markdown / Web
-- 结构化解析
-- 语义切片（Semantic Chunking）
-- 层级索引
+- 文档上传后可通过 SignalR 接收处理进度
+- 聊天流式消息也通过 SignalR 推送
 
-### 🖼 图片
-- OCR 文本识别
-- 图表理解
-- 表格抽取
-- 视觉语义分析
+## 这轮重构明确不做
 
-### 🎙 音频
-- ASR 自动转写
-- 说话人识别
-- 时间轴定位
-- 语义摘要
+以下能力不再作为运行时主链路维护：
 
-### 🎬 视频
-> Video = Audio + Keyframes
+- 多租户
+- 短信验证码登录
+- 租户选择页和 `X-Tenant-Id` 请求头
+- Push Device / 设备推送链路
+- 对外暴露的 Test API
 
-- 音轨提取 + 转写
-- 关键帧分析
-- 多模态联合索引
+数据库中旧表、旧字段和旧 migration 可以保留，但不再作为产品能力继续扩展。
 
----
+## 架构概览
 
-# 🏗 Architecture Overview
+### 前端
 
-OmniMind 采用 AI-Native 架构设计，而非传统 RAG 拼接模式。
+- `frontClient`
+- Vue 3 + Vite + Element Plus
 
-## 核心理念：
+### API
 
-> **AI Orchestrated Retrieval**
+- `OmniMind.Api`
+- 提供认证、知识库、文档、文件夹、邀请、聊天等接口
 
-而不是：
+### 摄取处理
 
-> Vector Search → Prompt → LLM
+- RabbitMQ 负责异步文档处理调度
+- `DocumentProcessor` 负责解析、切片、向量化编排
+- 音视频由外部转写服务处理后回流
 
----
+### 存储
 
-## Architecture Layers
+- MinIO：原始文件对象存储
+- Qdrant：向量检索
+- PostgreSQL：业务数据、会话、文档元数据
 
-### 🔹 AI Gateway
-统一接入层，支持：
+### 转写服务
 
-- Chat
-- Agent
-- API
-- Streaming
+- `转写程序/`
+- 当前按外部 ASR 服务集成，不在本轮主站重构范围内
 
----
+## 接口约定
 
-### 🔹 AI Orchestrator（核心大脑）
+当前主链路统一约定：
 
-系统的决策中枢，负责：
+- 登录响应：`token / refreshToken / expiresIn / user`
+- 分页响应：`items / totalCount / page / pageSize`
+- 文档 `contentType`：统一为 MIME 字符串
+- SignalR：只依赖 JWT 身份，不再接受前端自传 `userId`
 
-- 是否检索知识库
-- 检索范围判断
-- 多路召回
-- 工具调用
-- Agent 调度
-- 推理路径规划
+## 当前限制
 
----
+以下能力仍然属于后续增强项，不应在对外文档中宣称“已完成”：
 
-### 🔹 Multimodal Ingestion Pipeline
-
-异步处理所有数据：
-
-Pipeline：
-
-支持高吞吐与水平扩展。
-
----
-
-### 🔹 Hybrid Retrieval Engine
-
-提升检索准确率的关键组件：
-
-- Vector Search
-- Keyword Search（BM25）
-- Multi-Query Rewrite
-- ReRank
-- Context Fusion
-
-显著降低幻觉率。
-
----
-
-### 🔹 Knowledge Store
-
-双存储架构：
-
-**Object Storage**
-- 原始文件
-- 转写文本
-- Keyframes
-
-**Vector Database**
-- 语义索引
-- 层级 Chunk
-- Metadata
-
----
-
-# 🔐 Enterprise-Ready
-
-OmniMind 从第一天即面向企业设计：
-
-### ✔ RBAC 权限模型
-### ✔ 文档级权限控制
-### ✔ 私有化部署
-### ✔ 数据隔离
-### ✔ 审计日志
-
-满足医疗、金融等高合规行业需求。
-
----
-
-# ⚙️ Tech Stack
-
-## Backend
-- **.NET 9** — High performance AI-native backend  
-- **Semantic Kernel** — AI orchestration  
-- **SignalR** — Realtime streaming  
-
-## Infrastructure
-- **RabbitMQ** — Async pipeline  
-- **Qdrant** — Vector search  
-- **MinIO** — Object storage  
-
-## Frontend
-- **Vue 3** — Modern reactive UI  
-
----
-
-# 🎯 Design Principles
-
-OmniMind 遵循以下核心原则：
-
-## AI-Native
-系统围绕 AI 构建，而非后期接入。
-
-## Multimodal First
-默认支持多模态，而非插件式扩展。
-
-## Retrieval Driven
-以检索为核心，而非单纯生成。
-
-## Enterprise Grade
-稳定性、安全性、可扩展性优先。
-
----
-
-# 🔥 Typical Use Cases
-
-- 企业知识助手  
-- AI 医疗助手  
-- 研究辅助系统  
-- 智能客服  
-- 数字员工  
-- 决策支持系统  
-
----
-
-# 🌌 Vision
-
-> **From Knowledge Base → To Cognitive Infrastructure**
-
-OmniMind 不只是知识管理系统。
-
-我们的目标是：
-
-# 👉 成为企业的 AI 大脑。
-
----
-
-# 📈 Future Roadmap
-
-- Agent Framework  
-- Knowledge Graph  
-- Long-term Memory  
-- Autonomous Retrieval  
-- Multi-Agent Collaboration  
-
----
-
-# 🧭 Positioning
-
-OmniMind is not:
-
-- A chatbot wrapper  
-- A simple RAG tool  
-- A document QA system  
-
-OmniMind is:
-
-# 👉 The Cognitive Layer for Enterprises.
-
+- 图片 OCR 的正式识别实现
+- 音频与视频转写链路的正式生产化编排
+- 视频关键帧视觉理解
+- 网页抓取与正文抽取增强
+- 混合检索（BM25 + Vector）
+- Rerank
+- Knowledge Graph
+- Agent / Orchestrator
+- 长期记忆
+
+## 本地开发
+
+### 后端依赖
+
+- PostgreSQL
+- Redis
+- RabbitMQ
+- MinIO
+- Qdrant
+
+### 运行说明
+
+1. 配置 `DB_CONNECTION`、Redis、RabbitMQ、MinIO、Qdrant 等环境变量或配置文件
+2. 启动 `OmniMind.Api`
+3. 启动 `frontClient`
+4. 如需音视频转写，单独部署并启动 `转写程序/`
+
+## 目录说明
+
+```text
+OmniMind.Api/                     Web API
+OmniMind.Application/             应用服务与摄取逻辑
+OmniMind.Infrastructure/          存储、向量库、消息、实时通信
+OmniMind.Domain/                  领域实体
+OmniMind.Shared/                  Contracts / Enums / Abstractions
+frontClient/                      前端
+转写程序/                          外部转写服务
+```
+
+## 路线图
+
+后续如果继续扩展，优先顺序应是：
+
+1. 图片 OCR 正式化
+2. 音视频链路稳定化
+3. 混合检索与 rerank
+4. 更细粒度文档权限
+5. Agent 与编排能力

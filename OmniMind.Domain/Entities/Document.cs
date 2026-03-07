@@ -14,13 +14,15 @@ namespace OmniMind.Entities
     /// 文档/资源：多模态统一抽象。
     /// 无论 PDF/图片/音频/视频/网页，统一为 Document，通过 ContentType 区分。
     /// </summary>
-    [Table("documents")]
-    [Index(nameof(KnowledgeBaseId), nameof(CreatedAt))]
-    [Index(nameof(FileHash))]
-    [Index(nameof(SessionId))]
-    [Index(nameof(ContentType))]
-    public class Document
-    {
+[Table("documents")]
+[Index(nameof(KnowledgeBaseId), nameof(CreatedAt))]
+[Index(nameof(BatchId), nameof(CreatedAt))]
+[Index(nameof(FileHash))]
+[Index(nameof(SessionId))]
+[Index(nameof(ExternalId))]
+[Index(nameof(ContentType))]
+public class Document
+{
         /// <summary>
         /// 文档主键
         /// </summary>
@@ -53,6 +55,18 @@ namespace OmniMind.Entities
         public Folder? Folder { get; set; }
 
         /// <summary>
+        /// 所属导入批次ID（可选，批量导入时填写）
+        /// </summary>
+        [Column("batch_id")]
+        public string? BatchId { get; set; }
+
+        /// <summary>
+        /// 所属导入批次
+        /// </summary>
+        [ForeignKey(nameof(BatchId))]
+        public IngestionBatch? Batch { get; set; }
+
+        /// <summary>
         /// 标题/显示名称
         /// </summary>
         [Required]
@@ -80,6 +94,20 @@ namespace OmniMind.Entities
         [MaxLength(512)]
         [Column("source_uri")]
         public string? SourceUri { get; set; }
+
+        /// <summary>
+        /// 外部系统记录主键
+        /// </summary>
+        [MaxLength(128)]
+        [Column("external_id")]
+        public string? ExternalId { get; set; }
+
+        /// <summary>
+        /// 来源系统
+        /// </summary>
+        [MaxLength(128)]
+        [Column("source_system")]
+        public string? SourceSystem { get; set; }
 
         /// <summary>
         /// 原文件在对象存储中的 Key（笔记、网页链接等可为空）
@@ -150,6 +178,18 @@ namespace OmniMind.Entities
         /// </summary>
         [Column("content", TypeName = "text")]
         public string? Content { get; set; }
+
+        /// <summary>
+        /// 文档级扩展元数据
+        /// </summary>
+        [Column("metadata_json", TypeName = "text")]
+        public string? MetadataJson { get; set; }
+
+        /// <summary>
+        /// 外部内容更新时间
+        /// </summary>
+        [Column("content_updated_at")]
+        public DateTimeOffset? ContentUpdatedAt { get; set; }
 
         /// <summary>
         /// 会话ID（用于关联聊天临时附件）

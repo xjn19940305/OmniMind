@@ -36,7 +36,7 @@ export function createDocument(data: {
   knowledgeBaseId: string
   folderId?: string
   title: string
-  contentType: number
+  contentType: string
   sourceType: number
   sourceUri?: string
   objectKey?: string

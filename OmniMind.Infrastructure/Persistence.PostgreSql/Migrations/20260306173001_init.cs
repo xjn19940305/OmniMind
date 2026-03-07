@@ -139,6 +139,7 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     DateCreated = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Notes = table.Column<string>(type: "text", nullable: true),
                     LastSignDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    IsProfileCompleted = table.Column<bool>(type: "boolean", nullable: false),
                     TenantId = table.Column<string>(type: "text", nullable: true),
                     UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
@@ -275,6 +276,59 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PushDevices",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "text", nullable: false),
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    ClientId = table.Column<string>(type: "text", nullable: false),
+                    Platform = table.Column<string>(type: "text", nullable: false),
+                    DeviceModel = table.Column<string>(type: "text", nullable: true),
+                    OsVersion = table.Column<string>(type: "text", nullable: true),
+                    AppVersion = table.Column<string>(type: "text", nullable: true),
+                    Alias = table.Column<string>(type: "text", nullable: true),
+                    PushEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    LastActiveAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PushDevices", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PushDevices_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserProfiles",
+                columns: table => new
+                {
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    Industry = table.Column<string>(type: "text", nullable: true),
+                    Occupation = table.Column<string>(type: "text", nullable: true),
+                    SourceChannel = table.Column<string>(type: "text", nullable: true),
+                    Company = table.Column<string>(type: "text", nullable: true),
+                    Position = table.Column<string>(type: "text", nullable: true),
+                    Bio = table.Column<string>(type: "text", nullable: true),
+                    InterestTags = table.Column<string>(type: "text", nullable: true),
+                    CompletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserProfiles", x => x.UserId);
+                    table.ForeignKey(
+                        name: "FK_UserProfiles_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -456,6 +510,44 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "conversations",
+                columns: table => new
+                {
+                    id = table.Column<string>(type: "text", nullable: false),
+                    title = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    user_id = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    knowledge_base_id = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    document_id = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    model_id = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    conversation_type = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    is_pinned = table.Column<bool>(type: "boolean", nullable: false),
+                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_conversations", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_conversations_AspNetUsers_user_id",
+                        column: x => x.user_id,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_conversations_documents_document_id",
+                        column: x => x.document_id,
+                        principalTable: "documents",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_conversations_knowledge_bases_knowledge_base_id",
+                        column: x => x.knowledge_base_id,
+                        principalTable: "knowledge_bases",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "document_versions",
                 columns: table => new
                 {
@@ -498,6 +590,34 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         name: "FK_ingestion_tasks_documents_document_id",
                         column: x => x.document_id,
                         principalTable: "documents",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "chat_messages",
+                columns: table => new
+                {
+                    id = table.Column<string>(type: "text", nullable: false),
+                    conversation_id = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    role = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    content = table.Column<string>(type: "text", nullable: false),
+                    tokens = table.Column<int>(type: "integer", nullable: true),
+                    status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    error = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    knowledge_base_id = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    document_id = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    references = table.Column<string>(type: "jsonb", nullable: true),
+                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    completed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_chat_messages", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_chat_messages_conversations_conversation_id",
+                        column: x => x.conversation_id,
+                        principalTable: "conversations",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -550,6 +670,16 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_chat_messages_conversation_id",
+                table: "chat_messages",
+                column: "conversation_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_chat_messages_conversation_id_created_at",
+                table: "chat_messages",
+                columns: new[] { "conversation_id", "created_at" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_chunks_document_id_version_chunk_index",
                 table: "chunks",
                 columns: new[] { "document_id", "version", "chunk_index" },
@@ -559,6 +689,26 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                 name: "IX_chunks_parent_chunk_id",
                 table: "chunks",
                 column: "parent_chunk_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_conversations_document_id",
+                table: "conversations",
+                column: "document_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_conversations_knowledge_base_id",
+                table: "conversations",
+                column: "knowledge_base_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_conversations_user_id",
+                table: "conversations",
+                column: "user_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_conversations_user_id_updated_at",
+                table: "conversations",
+                columns: new[] { "user_id", "updated_at" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_document_versions_document_id_version",
@@ -668,6 +818,17 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                 column: "owner_user_id");
 
             migrationBuilder.CreateIndex(
+                name: "IX_PushDevices_ClientId",
+                table: "PushDevices",
+                column: "ClientId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PushDevices_UserId",
+                table: "PushDevices",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_token_usage_logs_created_at",
                 table: "token_usage_logs",
                 column: "created_at");
@@ -717,6 +878,9 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
+                name: "chat_messages");
+
+            migrationBuilder.DropTable(
                 name: "chunks");
 
             migrationBuilder.DropTable(
@@ -732,13 +896,22 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                 name: "knowledge_base_members");
 
             migrationBuilder.DropTable(
+                name: "PushDevices");
+
+            migrationBuilder.DropTable(
                 name: "refresh_tokens");
 
             migrationBuilder.DropTable(
                 name: "token_usage_logs");
 
             migrationBuilder.DropTable(
+                name: "UserProfiles");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoles");
+
+            migrationBuilder.DropTable(
+                name: "conversations");
 
             migrationBuilder.DropTable(
                 name: "documents");

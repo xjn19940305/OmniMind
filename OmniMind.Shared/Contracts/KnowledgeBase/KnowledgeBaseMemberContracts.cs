@@ -11,6 +11,7 @@ namespace OmniMind.Contracts.KnowledgeBase
         /// 用户ID
         /// </summary>
         public string UserId { get; init; } = string.Empty;
+        public string? UserName { get; init; }
 
         /// <summary>
         /// 角色
@@ -48,6 +49,11 @@ namespace OmniMind.Contracts.KnowledgeBase
         /// 用户ID
         /// </summary>
         public string UserId { get; init; } = string.Empty;
+
+        /// <summary>
+        /// 用户名称
+        /// </summary>
+        public string? UserName { get; init; }
 
         /// <summary>
         /// 角色

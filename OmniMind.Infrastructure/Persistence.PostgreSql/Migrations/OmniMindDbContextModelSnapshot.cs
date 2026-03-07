@@ -22,6 +22,75 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("OmniMind.Entities.ChatMessage", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<string>("ConversationId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DocumentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("error");
+
+                    b.Property<string>("KnowledgeBaseId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("knowledge_base_id");
+
+                    b.Property<string>("References")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("references");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("role");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<int?>("Tokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("tokens");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
+
+                    b.HasIndex("ConversationId", "CreatedAt");
+
+                    b.ToTable("chat_messages");
+                });
+
             modelBuilder.Entity("OmniMind.Entities.Chunk", b =>
                 {
                     b.Property<string>("Id")
@@ -83,6 +152,70 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         .IsUnique();
 
                     b.ToTable("chunks");
+                });
+
+            modelBuilder.Entity("OmniMind.Entities.Conversation", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ConversationType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("conversation_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DocumentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("document_id");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_pinned");
+
+                    b.Property<string>("KnowledgeBaseId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("knowledge_base_id");
+
+                    b.Property<string>("ModelId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("model_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("KnowledgeBaseId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "UpdatedAt");
+
+                    b.ToTable("conversations");
                 });
 
             modelBuilder.Entity("OmniMind.Entities.Document", b =>
@@ -1084,6 +1217,17 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("OmniMind.Entities.ChatMessage", b =>
+                {
+                    b.HasOne("OmniMind.Entities.Conversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+                });
+
             modelBuilder.Entity("OmniMind.Entities.Chunk", b =>
                 {
                     b.HasOne("OmniMind.Entities.Document", "Document")
@@ -1099,6 +1243,31 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     b.Navigation("Document");
 
                     b.Navigation("ParentChunk");
+                });
+
+            modelBuilder.Entity("OmniMind.Entities.Conversation", b =>
+                {
+                    b.HasOne("OmniMind.Entities.Document", "Document")
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("OmniMind.Entities.KnowledgeBase", "KnowledgeBase")
+                        .WithMany()
+                        .HasForeignKey("KnowledgeBaseId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("OmniMind.Entities.User", "User")
+                        .WithMany("Conversations")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+
+                    b.Navigation("KnowledgeBase");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("OmniMind.Entities.Document", b =>
@@ -1293,6 +1462,11 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("OmniMind.Entities.Conversation", b =>
+                {
+                    b.Navigation("Messages");
+                });
+
             modelBuilder.Entity("OmniMind.Entities.Document", b =>
                 {
                     b.Navigation("Chunks");
@@ -1325,6 +1499,8 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
 
             modelBuilder.Entity("OmniMind.Entities.User", b =>
                 {
+                    b.Navigation("Conversations");
+
                     b.Navigation("KnowledgeBaseMemberships");
 
                     b.Navigation("OwnedKnowledgeBases");

@@ -13,7 +13,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Minio;
-using OmniMind.Abstractions.Tenant;
 using OmniMind.Entities;
 using OmniMind.Infrastructure.Scheduling;
 using OmniMind.Persistence.PostgreSql;

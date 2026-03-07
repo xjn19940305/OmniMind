@@ -187,31 +187,6 @@ namespace OmniMind.Vector.Qdrant
             response.EnsureSuccessStatusCode();
         }
 
-        public async Task DeleteTenantCollectionsAsync(string tenantId, CancellationToken ct = default)
-        {
-            var collections = await ListCollectionsAsync(ct);
-            var prefix = $"tenant-{tenantId}_";
-
-            foreach (var col in collections)
-            {
-                if (col.StartsWith(prefix))
-                {
-                    await DeleteCollectionAsync(col, ct);
-                }
-            }
-        }
-
-        public async Task<IReadOnlyList<string>> ListTenantCollectionsAsync(string tenantId, CancellationToken ct = default)
-        {
-            var collections = await ListCollectionsAsync(ct);
-            var prefix = $"tenant-{tenantId}_";
-
-            return collections
-                .Where(c => c.StartsWith(prefix))
-                .Select(c => c.Substring(prefix.Length))
-                .ToList();
-        }
-
         public async Task ClearCollectionAsync(string collection, CancellationToken ct = default)
         {
             var collectionName = GetQualifiedCollectionName(collection);
@@ -249,14 +224,19 @@ namespace OmniMind.Vector.Qdrant
             }
         }
 
-        private string GetQualifiedCollectionName(string collection, string? tenantId = "0")
+        private string GetQualifiedCollectionName(string collection)
         {
-            return $"documents_kb_{collection}";
+            return collection.Trim();
         }
 
-        public static string GenerateTenantCollectionName(string tenantId, string collectionName)
+        public static string BuildKnowledgeBaseCollectionName(string knowledgeBaseId)
         {
-            return $"documents_kb_{collectionName}";
+            return VectorCollectionName.BuildKnowledgeBaseCollectionName(knowledgeBaseId);
+        }
+
+        public static string BuildSessionCollectionName(string sessionId)
+        {
+            return VectorCollectionName.BuildSessionCollectionName(sessionId);
         }
 
         private async Task<List<string>> ListCollectionsAsync(CancellationToken ct)

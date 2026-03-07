@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: consumer
+    container_name: speechtotext_consumer_1
+    volumes:
+      - ./config.ini:/app/config.ini
+      - ./logs:/app/logs
+      - ./temp_oss_files:/app/temp_oss_files
+      - ./speaker_workspace:/app/speaker_workspace
+      - model_cache:/root/.cache/modelscope
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Shanghai
+    networks:
+      - speechtotext_network
+    restart: unless-stopped
+
+volumes:
+  model_cache:
+
+networks:
+  speechtotext_network:
+    driver: bridge

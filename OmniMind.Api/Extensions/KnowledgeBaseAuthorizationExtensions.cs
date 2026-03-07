@@ -5,101 +5,160 @@ using OmniMind.Persistence.PostgreSql;
 
 namespace OmniMind.Api.Extensions
 {
-    /// <summary>
-    /// 知识库权限检查扩展
-    /// </summary>
+    public enum KnowledgeBasePermission
+    {
+        View,
+        Edit,
+        ManageMembers,
+        ManageInvitations,
+        Delete
+    }
+
     public static class KnowledgeBaseAuthorizationExtensions
     {
-        /// <summary>
-        /// 权限检查结果
-        /// </summary>
-        public class AuthorizationResult
+        public sealed class AuthorizationResult
         {
-            public bool HasAccess { get; set; }
-            public string? Message { get; set; }
+            public bool HasAccess { get; init; }
+            public string? Message { get; init; }
+            public bool IsOwner { get; init; }
+            public KnowledgeBaseMemberRole? MemberRole { get; init; }
         }
 
-        /// <summary>
-        /// 检查用户是否有权访问知识库
-        /// </summary>
-        /// <param name="dbContext">数据库上下文</param>
-        /// <param name="knowledgeBaseId">知识库ID</param>
-        /// <param name="currentUserId">当前用户ID</param>
-        /// <returns>权限检查结果</returns>
-        public static async Task<AuthorizationResult> CheckKnowledgeBaseAccessAsync(
+        public static Task<AuthorizationResult> CheckKnowledgeBaseAccessAsync(
             this OmniMindDbContext dbContext,
             string knowledgeBaseId,
             string currentUserId)
         {
-            var knowledgeBase = await dbContext.KnowledgeBases.FindAsync(knowledgeBaseId);
-            if (knowledgeBase == null)
-            {
-                return new AuthorizationResult
-                {
-                    HasAccess = false,
-                    Message = "知识库不存在"
-                };
-            }
-
-            return await CheckKnowledgeBaseAccessAsync(dbContext, knowledgeBase, currentUserId);
+            return dbContext.AuthorizeKnowledgeBaseAsync(knowledgeBaseId, currentUserId, KnowledgeBasePermission.View);
         }
 
-        /// <summary>
-        /// 检查用户是否有权访问知识库
-        /// </summary>
-        /// <param name="dbContext">数据库上下文</param>
-        /// <param name="knowledgeBase">知识库实体</param>
-        /// <param name="currentUserId">当前用户ID</param>
-        /// <returns>权限检查结果</returns>
-        public static async Task<AuthorizationResult> CheckKnowledgeBaseAccessAsync(
+        public static Task<AuthorizationResult> CheckKnowledgeBaseAccessAsync(
             this OmniMindDbContext dbContext,
             KnowledgeBase knowledgeBase,
             string currentUserId)
         {
-            var isOwner = knowledgeBase.OwnerUserId == currentUserId;
+            return dbContext.AuthorizeKnowledgeBaseAsync(knowledgeBase, currentUserId, KnowledgeBasePermission.View);
+        }
 
-            // 拥有者始终有权限
+        public static async Task<AuthorizationResult> AuthorizeKnowledgeBaseAsync(
+            this OmniMindDbContext dbContext,
+            string knowledgeBaseId,
+            string currentUserId,
+            KnowledgeBasePermission permission)
+        {
+            var knowledgeBase = await dbContext.KnowledgeBases.FirstOrDefaultAsync(kb => kb.Id == knowledgeBaseId);
+            if (knowledgeBase == null)
+            {
+                return Denied("知识库不存在");
+            }
+
+            return await dbContext.AuthorizeKnowledgeBaseAsync(knowledgeBase, currentUserId, permission);
+        }
+
+        public static async Task<AuthorizationResult> AuthorizeKnowledgeBaseAsync(
+            this OmniMindDbContext dbContext,
+            KnowledgeBase knowledgeBase,
+            string currentUserId,
+            KnowledgeBasePermission permission)
+        {
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                return Denied("未登录用户不能访问知识库");
+            }
+
+            var isOwner = knowledgeBase.OwnerUserId == currentUserId;
             if (isOwner)
             {
-                return new AuthorizationResult { HasAccess = true };
+                return Allowed(isOwner: true);
             }
 
-            var isPrivate = knowledgeBase.Visibility == Visibility.Private;
-            var isInternal = knowledgeBase.Visibility == Visibility.Internal;
-            var isPublic = knowledgeBase.Visibility == Visibility.Public;
+            var member = await dbContext.KnowledgeBaseMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.KnowledgeBaseId == knowledgeBase.Id && m.UserId == currentUserId);
 
-            // 私有和内部知识库，只有拥有者能访问
-            if (isPrivate || isInternal)
+            return permission switch
             {
-                return new AuthorizationResult
-                {
-                    HasAccess = false,
-                    Message = "知识库当前为私密状态，只有拥有者可以访问"
-                };
-            }
+                KnowledgeBasePermission.View => AuthorizeView(knowledgeBase, member),
+                KnowledgeBasePermission.Edit => AuthorizeEdit(member),
+                KnowledgeBasePermission.ManageMembers => AuthorizeManageMembers(member),
+                KnowledgeBasePermission.ManageInvitations => AuthorizeManageInvitations(member),
+                KnowledgeBasePermission.Delete => AuthorizeDelete(member),
+                _ => Denied("无权访问此知识库")
+            };
+        }
 
-            // 公开知识库，成员可访问
-            if (isPublic)
+        private static AuthorizationResult AuthorizeView(KnowledgeBase knowledgeBase, KnowledgeBaseMember? member)
+        {
+            if (member != null)
             {
-                var isMember = await dbContext.KnowledgeBaseMembers
-                    .AnyAsync(m => m.KnowledgeBaseId == knowledgeBase.Id && m.UserId == currentUserId);
-
-                if (isMember)
-                {
-                    return new AuthorizationResult { HasAccess = true };
-                }
-
-                return new AuthorizationResult
-                {
-                    HasAccess = false,
-                    Message = "只有知识库成员可以访问"
-                };
+                return Allowed(member.Role);
             }
 
+            return knowledgeBase.Visibility switch
+            {
+                Visibility.Public => Allowed(),
+                Visibility.Internal => Denied("只有知识库成员可以访问此知识库"),
+                Visibility.Private => Denied("只有知识库拥有者可以访问此知识库"),
+                _ => Denied("无权访问此知识库")
+            };
+        }
+
+        private static AuthorizationResult AuthorizeEdit(KnowledgeBaseMember? member)
+        {
+            if (member?.Role is KnowledgeBaseMemberRole.Admin or KnowledgeBaseMemberRole.Editor)
+            {
+                return Allowed(member.Role);
+            }
+
+            return Denied("只有拥有者、管理员或编辑可以修改知识库内容");
+        }
+
+        private static AuthorizationResult AuthorizeManageMembers(KnowledgeBaseMember? member)
+        {
+            if (member?.Role == KnowledgeBaseMemberRole.Admin)
+            {
+                return Allowed(member.Role);
+            }
+
+            return Denied("只有拥有者或管理员可以管理成员");
+        }
+
+        private static AuthorizationResult AuthorizeManageInvitations(KnowledgeBaseMember? member)
+        {
+            if (member?.Role == KnowledgeBaseMemberRole.Admin)
+            {
+                return Allowed(member.Role);
+            }
+
+            return Denied("只有拥有者或管理员可以管理邀请");
+        }
+
+        private static AuthorizationResult AuthorizeDelete(KnowledgeBaseMember? member)
+        {
+            if (member?.Role == KnowledgeBaseMemberRole.Admin)
+            {
+                return Allowed(member.Role);
+            }
+
+            return Denied("只有拥有者或管理员可以删除知识库");
+        }
+
+        private static AuthorizationResult Allowed(KnowledgeBaseMemberRole? role = null, bool isOwner = false)
+        {
+            return new AuthorizationResult
+            {
+                HasAccess = true,
+                IsOwner = isOwner,
+                MemberRole = role
+            };
+        }
+
+        private static AuthorizationResult Denied(string message)
+        {
             return new AuthorizationResult
             {
                 HasAccess = false,
-                Message = "无权访问此知识库"
+                Message = message
             };
         }
     }

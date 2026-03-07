@@ -329,12 +329,12 @@ namespace OmniMind.Messaging.RabbitMQ
                     if (!string.IsNullOrEmpty(document.KnowledgeBaseId))
                     {
                         // 知识库文件
-                        documentCollectionName = $"document_kb_{document.KnowledgeBaseId}";
+                        documentCollectionName = VectorCollectionName.BuildKnowledgeBaseCollectionName(document.KnowledgeBaseId);
                     }
                     else if (!string.IsNullOrEmpty(document.SessionId))
                     {
                         // 临时文件（AI 聊天上传），按 SessionId 隔离
-                        documentCollectionName = $"document_session_{document.SessionId}";
+                        documentCollectionName = VectorCollectionName.BuildSessionCollectionName(document.SessionId);
                     }
                     else
                     {

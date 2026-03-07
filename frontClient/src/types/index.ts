@@ -1,18 +1,17 @@
-// User types
 export interface UserInfo {
   id: string
-  username: string
+  username?: string
+  userName?: string
   nickname?: string
+  nickName?: string
   avatar?: string
+  picture?: string
   phone?: string
+  phoneNumber?: string
   email?: string
-  tenantId?: string
   createdAt?: string
-  tenant?: {
-    id: string
-    name: string
-    code: string
-  }
+  dateCreated?: string
+  lastSignDate?: string
 }
 
 export interface LoginForm {
@@ -20,18 +19,11 @@ export interface LoginForm {
   password: string
 }
 
-export interface PhoneLoginForm {
-  phone: string
-  code: string
-  tenantId: string
-}
-
-// Chat types
 export interface ChatMessage {
-  id: string
+  id?: string
   role: 'user' | 'assistant' | 'system'
   content: string
-  timestamp: string
+  timestamp?: string
   files?: Attachment[]
   metadata?: Record<string, any>
   status?: 'pending' | 'streaming' | 'completed' | 'failed'
@@ -47,7 +39,6 @@ export interface ChatSession {
   updatedAt: string
 }
 
-// 新增：会话相关类型（与后端对应）
 export interface Conversation {
   id: string
   title: string
@@ -63,10 +54,6 @@ export interface Conversation {
   lastMessageAt?: string
 }
 
-export interface ConversationDetail extends Conversation {
-  messages: ChatMessageDto[]
-}
-
 export interface ChatMessageDto {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -80,15 +67,19 @@ export interface ChatMessageDto {
   completedAt?: string
 }
 
+export interface ConversationDetail extends Conversation {
+  messages: ChatMessageDto[]
+}
+
 export interface ConversationListResponse {
   conversations: Conversation[]
-  total: number
+  totalCount: number
 }
 
 export interface Attachment {
   id: string
   name: string
-  type: 'image' | 'pdf' | 'word' | 'excel' | 'ppt' | 'markdown' | 'web' | 'video' | 'audio'
+  type: 'image' | 'pdf' | 'word' | 'excel' | 'ppt' | 'markdown' | 'web' | 'video' | 'audio' | 'file'
   url: string
   size?: number
   thumbnail?: string
@@ -96,7 +87,6 @@ export interface Attachment {
   status?: DocumentStatus
 }
 
-// Enums
 export enum Visibility {
   Private = 1,
   Internal = 2,
@@ -107,23 +97,6 @@ export enum KnowledgeBaseMemberRole {
   Admin = 1,
   Editor = 2,
   Viewer = 3
-}
-
-export enum KnowledgeBaseMemberRole {
-  Admin = 1,
-  Editor = 2,
-  Viewer = 3
-}
-
-export enum ContentType {
-  Pdf = 1,
-  Docx = 2,
-  Pptx = 3,
-  Markdown = 4,
-  Web = 5,
-  Image = 6,
-  Audio = 7,
-  Video = 8
 }
 
 export enum SourceType {
@@ -149,7 +122,6 @@ export enum InvitationStatus {
   Canceled = 4
 }
 
-// Knowledge Base types
 export interface KnowledgeBase {
   id: string
   name: string
@@ -161,6 +133,7 @@ export interface KnowledgeBase {
   createdAt: string
   updatedAt?: string
   memberCount?: number
+  documentCount?: number
 }
 
 export interface KnowledgeBaseDetail extends KnowledgeBase {
@@ -177,7 +150,6 @@ export interface KnowledgeBaseMember {
   createdAt: string
 }
 
-// Folder types
 export interface Folder {
   id: string
   knowledgeBaseId: string
@@ -201,10 +173,9 @@ export interface FolderTreeResponse {
   sortOrder: number
   createdAt: string
   documentCount: number
-  children?: FolderTreeResponse[]
+  children: FolderTreeResponse[]
 }
 
-// File Item types (for combined folder + document listing)
 export enum FileItemType {
   Folder = 1,
   Document = 2
@@ -224,16 +195,16 @@ export interface FileItemResponse {
   updatedAt?: string
 }
 
-// Document types
 export interface Document {
   id: string
   knowledgeBaseId: string
   folderId?: string
+  folderName?: string
   title: string
-  contentType: ContentType
+  contentType: string
   sourceType: SourceType
   sourceUri?: string
-  objectKey: string
+  objectKey?: string
   fileSize: number
   fileHash?: string
   language?: string
@@ -249,7 +220,6 @@ export interface Document {
   updatedAt?: string
 }
 
-// API response types
 export interface PaginatedResponse<T> {
   items: T[]
   totalCount: number
@@ -261,7 +231,6 @@ export interface ErrorResponse {
   message: string
 }
 
-// Invitation types
 export interface Invitation {
   id: string
   knowledgeBaseId: string

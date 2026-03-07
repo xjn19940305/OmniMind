@@ -1,37 +1,41 @@
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Extensions.Logging;
 using OmniMind.Abstractions.Ingestion;
 using System.Text;
 using UglyToad.PdfPig;
-using UglyToad.PdfPig.Content;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace OmniMind.Ingestion
 {
-    /// <summary>
-    /// 默认文件解析器实现 - 跨平台版本
-    /// 支持：PDF、DOCX、TXT、Markdown、图片OCR、音频转写、视频转写
-    /// </summary>
     public class FileParser : IFileParser
     {
-        private readonly ILogger<FileParser>? _logger;
+        private readonly ILogger<FileParser>? logger;
 
         public FileParser(ILogger<FileParser>? logger = null)
         {
-            _logger = logger;
+            this.logger = logger;
         }
 
-        private static readonly string[] SupportedContentTypes = new[]
+        private static readonly string[] SupportedContentTypes =
         {
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "text/plain",
             "text/markdown",
-            // 图片类型
-            "image/jpeg", "image/jpg", "image/png", "image/gif", "image/bmp", "image/webp",
-            // 音频/视频类型
-            "audio/mp3", "audio/mpeg", "audio/wav", "audio/m4a", "audio/x-m4a",
-            "video/mp4", "video/mpeg", "video/quicktime"
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/gif",
+            "image/bmp",
+            "image/webp",
+            "audio/mp3",
+            "audio/mpeg",
+            "audio/wav",
+            "audio/m4a",
+            "audio/x-m4a",
+            "video/mp4",
+            "video/mpeg",
+            "video/quicktime"
         };
 
         public Task<string> ParseAsync(
@@ -45,93 +49,17 @@ namespace OmniMind.Ingestion
                 stream.Position = 0;
             }
 
-            // 标准化 content type（处理 audio/mpeg vs audio/mp3 等）
             var normalizedContentType = contentType.ToLowerInvariant();
 
             return normalizedContentType switch
             {
                 "application/pdf" => ParsePdfAsync(stream, cancellationToken),
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    => Task.Run(() => ParseDocx(stream), cancellationToken),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => Task.Run(() => ParseDocx(stream), cancellationToken),
                 "text/plain" or "text/markdown" => ParseTextAsync(stream, cancellationToken),
-
-                // 图片 OCR 识别
-                var ct when ct.StartsWith("image/")
-                    => ParseImageAsync(stream, ct, cancellationToken),
-
-                // 音频/视频转写（统一使用 FunASR）
-                var ct when ct.StartsWith("audio/") || ct.StartsWith("video/")
-                    => ParseMediaAsync(stream, ct, cancellationToken),
-
-                _ => throw new NotSupportedException($"不支持的文件类型: {contentType}")
+                var ct when ct.StartsWith("image/") => ParseImageAsync(stream, ct, cancellationToken),
+                var ct when ct.StartsWith("audio/") || ct.StartsWith("video/") => ParseMediaAsync(stream, ct, cancellationToken),
+                _ => throw new NotSupportedException($"Unsupported content type: {contentType}")
             };
-        }
-
-        /// <summary>
-        /// 图片 OCR 识别
-        /// </summary>
-        private async Task<string> ParseImageAsync(Stream stream, string contentType, CancellationToken ct)
-        {
-            try
-            {
-                _logger?.LogInformation("开始图片OCR识别: ContentType={ContentType}", contentType);
-
-                // TODO: 实现图片 OCR 识别
-                // 可选方案：
-                // 1. Tesseract OCR - 开源，跨平台，需安装语言包
-                //    - NuGet: TesseractOCR
-                //    - 下载中文语言包 chi_sim.traineddata
-                // 2. PaddleOCR - 百度开源，中文效果好，需 Python 环境
-                // 3. Azure Computer Vision - 云服务，准确率高
-                // 4. Google Vision API - 云服务，准确率高
-                // 5. 阿里云 OCR - 云服务，支持中文
-
-                // 示例代码（使用 Tesseract）：
-                // using (var engine = new TesseractEngine(@"./tessdata", "chi_sim", EngineMode.Default))
-                // using (var img = Pix.LoadFromStream(stream))
-                // {
-                //     var page = engine.Process(img);
-                //     return page.GetText();
-                // }
-
-                throw new NotImplementedException("图片 OCR 功能待实现，请选择 OCR 方案并集成");
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "图片OCR识别失败: ContentType={ContentType}", contentType);
-                throw new InvalidOperationException("图片 OCR 识别失败", ex);
-            }
-        }
-
-        /// <summary>
-        /// 音频/视频转写（使用 FunASR）
-        /// </summary>
-        private async Task<string> ParseMediaAsync(Stream stream, string contentType, CancellationToken ct)
-        {
-            try
-            {
-                _logger?.LogInformation("开始媒体转写: ContentType={ContentType}", contentType);
-
-                // TODO: 在这里实现 FunASR 转写逻辑
-                // 1. 如果是视频，先提取音频（可以使用 FFmpeg）
-                // 2. 调用 FunASR 进行语音转写
-                // 3. 返回转写文本
-
-                // 示例代码（需要实现）：
-                // if (contentType.StartsWith("video/"))
-                // {
-                //     stream = await ExtractAudioAsync(stream);
-                // }
-                // var transcription = await funAsrService.TranscribeAsync(stream);
-                // return transcription.Text;
-
-                throw new NotImplementedException("FunASR 转写功能待实现，请在这里集成 FunASR 服务");
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "媒体转写失败: ContentType={ContentType}", contentType);
-                throw new InvalidOperationException("媒体转写失败", ex);
-            }
         }
 
         public bool IsSupported(string contentType)
@@ -144,7 +72,6 @@ namespace OmniMind.Ingestion
             try
             {
                 var text = new StringBuilder();
-
                 using var pdfDocument = PdfDocument.Open(stream);
                 foreach (var page in pdfDocument.GetPages())
                 {
@@ -152,12 +79,12 @@ namespace OmniMind.Ingestion
                     text.AppendLine(page.Text);
                 }
 
-                return await Task.FromResult(PostProcessText(text.ToString()));
+                return PostProcessText(text.ToString());
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "PDF 解析失败");
-                throw new InvalidOperationException("PDF 文件解析失败", ex);
+                logger?.LogError(ex, "PDF parse failed");
+                throw new InvalidOperationException("PDF parse failed", ex);
             }
         }
 
@@ -194,8 +121,10 @@ namespace OmniMind.Ingestion
                             var cellText = string.Join(" ", cell.Elements<Paragraph>().Select(p => p.InnerText));
                             rowText.Add(cellText.Trim());
                         }
+
                         text.AppendLine(string.Join(" | ", rowText));
                     }
+
                     text.AppendLine();
                 }
 
@@ -203,16 +132,54 @@ namespace OmniMind.Ingestion
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "DOCX 解析失败");
-                throw new InvalidOperationException("DOCX 文件解析失败", ex);
+                logger?.LogError(ex, "DOCX parse failed");
+                throw new InvalidOperationException("DOCX parse failed", ex);
             }
         }
 
         private async Task<string> ParseTextAsync(Stream stream, CancellationToken ct)
         {
             using var reader = new StreamReader(stream, Encoding.UTF8);
-            var text = await reader.ReadToEndAsync(ct);
-            return PostProcessText(text);
+            return PostProcessText(await reader.ReadToEndAsync(ct));
+        }
+
+        private async Task<string> ParseImageAsync(Stream stream, string contentType, CancellationToken ct)
+        {
+            try
+            {
+                logger?.LogInformation(
+                    "Image OCR is not configured yet. Writing placeholder text. ContentType={ContentType}",
+                    contentType);
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer, ct);
+                return $"[image]\ncontent_type: {contentType}\nbyte_length: {buffer.Length}\nocr_status: pending_external_ocr";
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Image parse failed: ContentType={ContentType}", contentType);
+                throw new InvalidOperationException("Image parse failed", ex);
+            }
+        }
+
+        private async Task<string> ParseMediaAsync(Stream stream, string contentType, CancellationToken ct)
+        {
+            try
+            {
+                logger?.LogWarning(
+                    "Media parsing was invoked directly. Media files must go through the async transcription queue first. ContentType={ContentType}",
+                    contentType);
+
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer, ct);
+
+                throw new InvalidOperationException(
+                    $"Media files must be transcribed asynchronously before parsing. ContentType={contentType}, ByteLength={buffer.Length}");
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Media parse failed: ContentType={ContentType}", contentType);
+                throw;
+            }
         }
 
         private static string PostProcessText(string text)

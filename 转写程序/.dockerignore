@@ -1,0 +1,43 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# 日志和临时文件
+logs/
+*.log
+temp_audio/
+test_audio/
+
+# 数据库配置（将通过挂载提供）
+db_config.ini
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 测试文件
+test_*.py
+*_test.py
+
+# 文档
+docs/
+*.md
+!README.md
+
+# 其他
+.DS_Store
+*.bak
+*.tmp
