@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using System.Linq;
 using OmniMind.Abstractions.Ingestion;
 using OmniMind.Ingestion;
@@ -110,9 +109,7 @@ namespace OmniMind.Ingestion
 
             services.AddSingleton<global::Microsoft.Extensions.AI.IChatClient>(sp =>
             {
-                var loggerFactory = NullLoggerFactory.Instance;
-                var logger = loggerFactory.CreateLogger<AlibabaCloudChatClient>();
-                return CreateAlibabaCloudClient(options.ApiKey, services.BuildServiceProvider(), options.Model, options.Endpoint);
+                return CreateAlibabaCloudClient(options.ApiKey, sp, options.Model, options.Endpoint);
             });
             return services;
         }
@@ -166,8 +163,7 @@ namespace OmniMind.Ingestion
             httpClient.DefaultRequestHeaders.CacheControl =
                 new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
 
-            var loggerFactory = NullLoggerFactory.Instance;
-            var logger = loggerFactory.CreateLogger<AlibabaCloudChatClient>();
+            var logger = serviceProvider.GetRequiredService<ILogger<AlibabaCloudChatClient>>();
 
             return new AlibabaCloudChatClient(httpClient, options, serviceProvider, logger);
         }

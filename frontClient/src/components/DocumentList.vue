@@ -8,7 +8,7 @@
         :data="uploadData"
         :show-file-list="false"
         :before-upload="beforeUpload"
-        accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.jpg,.jpeg,.png,.gif,.bmp,.mp4,.mp3"
+        accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.jpg,.jpeg,.png,.gif,.bmp,.mp4,.mp3"
         :auto-upload="false"
         :on-change="handleFileChange"
         drag
@@ -53,10 +53,13 @@
           </el-icon>
         </div>
         <div class="doc-info">
-          <div class="doc-title">{{ doc.title }}</div>
+          <div class="doc-title-row">
+            <div class="doc-title">{{ doc.title }}</div>
+            <span class="file-type-pill">{{ getDocumentTypeLabel(doc.contentType) }}</span>
+          </div>
           <div class="doc-meta">
-            <el-tag :type="getStatusType(doc.status)" size="small">
-              {{ getStatusLabel(doc.status) }}
+            <el-tag :type="getDocumentStatusType(doc.status)" size="small">
+              {{ getDocumentStatusLabel(doc.status) }}
             </el-tag>
             <span class="doc-time">{{ formatDate(doc.createdAt) }}</span>
           </div>
@@ -102,18 +105,25 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadInstance } from 'element-plus'
 import {
+  DataBoard,
   Delete,
   Document,
+  Grid,
   Headset,
+  Link,
+  Memo,
   MoreFilled,
   Picture,
   Search,
   Sort,
+  Tickets,
   Upload,
   VideoCamera
 } from '@element-plus/icons-vue'
 import { deleteDocument, getDocuments } from '../api/document'
 import type { Document as DocType } from '../types'
+import { getDocumentStatusLabel, getDocumentStatusType } from '../utils/documentStatus'
+import { getDocumentTypeKey, getDocumentTypeLabel } from '../utils/documentType'
 import {
   initSignalR,
   isConnected,
@@ -276,25 +286,58 @@ function handleDrop(event: DragEvent) {
 }
 
 function getFileIcon(contentType: string) {
-  if (contentType.startsWith('image/')) return Picture
-  if (contentType.startsWith('video/')) return VideoCamera
-  if (contentType.startsWith('audio/')) return Headset
-  return Document
+  switch (getDocumentTypeKey(contentType)) {
+    case 'pdf':
+      return Tickets
+    case 'word':
+      return Memo
+    case 'ppt':
+      return DataBoard
+    case 'excel':
+      return Grid
+    case 'web':
+      return Link
+    case 'image':
+      return Picture
+    case 'video':
+      return VideoCamera
+    case 'audio':
+      return Headset
+    default:
+      return Document
+  }
 }
 
 function getFileIconColor(contentType: string) {
-  if (contentType === 'application/pdf') return '#d14f28'
-  if (contentType.includes('word')) return '#295497'
-  if (contentType.includes('presentation')) return '#d24726'
-  if (contentType.startsWith('text/markdown')) return '#083fa1'
-  if (contentType.startsWith('image/')) return '#67c23a'
-  if (contentType.startsWith('video/')) return '#e6a23c'
-  if (contentType.startsWith('audio/')) return '#909399'
-  return '#409eff'
+  switch (getDocumentTypeKey(contentType)) {
+    case 'pdf':
+      return '#d14f28'
+    case 'word':
+      return '#295497'
+    case 'ppt':
+      return '#d24726'
+    case 'excel':
+      return '#1d6f42'
+    case 'markdown':
+      return '#7c3aed'
+    case 'text':
+      return '#4b5563'
+    case 'web':
+      return '#0f766e'
+    case 'image':
+      return '#67c23a'
+    case 'video':
+      return '#e6a23c'
+    case 'audio':
+      return '#909399'
+    default:
+      return '#409eff'
+  }
 }
 
 function getStatusType(status: number): 'success' | 'info' | 'warning' | 'danger' {
   switch (status) {
+    case 0: return 'info'
     case 1: return 'info'
     case 2: return 'warning'
     case 3: return 'info'
@@ -307,11 +350,12 @@ function getStatusType(status: number): 'success' | 'info' | 'warning' | 'danger
 
 function getStatusLabel(status: number) {
   const labels: Record<number, string> = {
+    0: '待处理',
     1: '已上传',
     2: '解析中',
     3: '已解析',
-    4: '索引中',
-    5: '已完成',
+    4: '向量化中',
+    5: '已向量化',
     6: '失败'
   }
   return labels[status] || '未知'
@@ -328,6 +372,7 @@ function handleDocumentProgress(progress: DocumentProgress) {
   }
 
   const statusMap: Record<string, number> = {
+    Pending: 0,
     Uploaded: 1,
     Parsing: 2,
     Parsed: 3,
@@ -379,12 +424,17 @@ defineExpose({
   flex-direction: column;
   gap: 16px;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .toolbar {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .search-input {
@@ -420,13 +470,36 @@ defineExpose({
   min-width: 0;
 }
 
+.doc-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  min-width: 0;
+}
+
 .doc-title {
   font-size: 14px;
   font-weight: 500;
-  margin-bottom: 4px;
+  min-width: 0;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.file-type-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .doc-meta {

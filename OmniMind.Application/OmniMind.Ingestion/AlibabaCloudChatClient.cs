@@ -9,6 +9,7 @@ using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 // 使用别名解决 ChatMessage 类型冲突
@@ -157,11 +158,24 @@ namespace OmniMind.Ingestion
             var sb = new StringBuilder();
             var buffer = new char[1024];
             var list = new List<AlibabaCloudChatUsageInfo>();
+            var streamingStopwatch = Stopwatch.StartNew();
+            var firstReadLogged = false;
+            var firstEventLogged = false;
 
             while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
             {
                 var read = await reader.ReadAsync(buffer, 0, buffer.Length);
                 if (read <= 0) continue;
+
+                if (!firstReadLogged)
+                {
+                    logger.LogInformation(
+                        "[AlibabaCloudChat] first stream bytes: ElapsedMs={ElapsedMs}, CharCount={CharCount}, Model={Model}",
+                        streamingStopwatch.ElapsedMilliseconds,
+                        read,
+                        options?.ModelId ?? Metadata.ModelId);
+                    firstReadLogged = true;
+                }
 
                 sb.Append(buffer, 0, read);
 
@@ -192,6 +206,19 @@ namespace OmniMind.Ingestion
 
                     var data = string.Join("\n", dataLines);
                     if (string.IsNullOrWhiteSpace(data)) continue;
+                    if (string.Equals(data.Trim(), "[DONE]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    if (!firstEventLogged)
+                    {
+                        logger.LogInformation(
+                            "[AlibabaCloudChat] first sse event: ElapsedMs={ElapsedMs}, DataLength={DataLength}, Model={Model}",
+                            streamingStopwatch.ElapsedMilliseconds,
+                            data.Length,
+                            options?.ModelId ?? Metadata.ModelId);
+                        firstEventLogged = true;
+                    }
 
                     if (data.Contains("chat.completion.chunk"))
                     {
@@ -372,6 +399,11 @@ namespace OmniMind.Ingestion
                     include_usage = true
                 }
             };
+
+            if (stream)
+            {
+                requestData["incremental_output"] = true;
+            }
             if (options?.AdditionalProperties != null)
             {
                 foreach (var item in options.AdditionalProperties)

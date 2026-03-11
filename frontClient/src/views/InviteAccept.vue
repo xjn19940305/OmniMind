@@ -1,7 +1,8 @@
 <template>
-  <div class="invite-page">
-    <div class="invite-container">
-      <div v-loading="loading" class="invite-card">
+  <div class="invite-shell">
+    <div class="invite-page">
+      <div class="invite-container">
+        <div v-loading="loading" class="invite-card">
         <template v-if="!loading && invitation">
           <div class="invite-header">
             <el-icon class="invite-icon" :size="64"><Collection /></el-icon>
@@ -84,6 +85,7 @@
             <el-button type="primary" @click="goToKnowledge">前往知识库</el-button>
           </div>
         </template>
+        </div>
       </div>
     </div>
   </div>
@@ -208,13 +210,20 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.invite-shell {
+  min-height: 100vh;
+  padding: clamp(16px, 4vw, 32px);
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.12), transparent 28%),
+    linear-gradient(160deg, #eef4ff 0%, #f8fbff 48%, #ecfdf5 100%);
+}
+
 .invite-page {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
+  min-height: calc(100vh - clamp(32px, 8vw, 64px));
 }
 
 .invite-container {
@@ -223,10 +232,11 @@ onMounted(() => {
 }
 
 .invite-card {
-  background: white;
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 24px;
   padding: 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.1);
   min-height: 400px;
 }
 
@@ -244,6 +254,26 @@ onMounted(() => {
     font-weight: 600;
     color: #303133;
     margin: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .invite-card {
+    padding: 24px 18px;
+    border-radius: 20px;
+  }
+
+  .invite-info {
+    .info-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+  }
+
+  .action-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }
 

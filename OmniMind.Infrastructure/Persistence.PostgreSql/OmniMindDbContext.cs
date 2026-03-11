@@ -19,7 +19,6 @@ namespace OmniMind.Persistence.PostgreSql
         public DbSet<IngestionTask> IngestionTasks { get; set; }
         public DbSet<TokenUsageLog> TokenUsageLogs { get; set; }
         public DbSet<UserProfile> UserProfiles { get; set; }
-        public DbSet<PushDevice> PushDevices { get; set; }
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
 
@@ -119,18 +118,6 @@ namespace OmniMind.Persistence.PostgreSql
                 .WithOne(u => u.Profile)
                 .HasForeignKey<UserProfile>(p => p.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            // User - PushDevice 一对多关系
-            modelBuilder.Entity<PushDevice>()
-                .HasOne(d => d.User)
-                .WithMany(u => u.PushDevices)
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // PushDevice - ClientId 索引（推送时常用）
-            modelBuilder.Entity<PushDevice>()
-                .HasIndex(d => d.ClientId)
-                .IsUnique();
 
             // Conversation - User 关系
             modelBuilder.Entity<Conversation>()

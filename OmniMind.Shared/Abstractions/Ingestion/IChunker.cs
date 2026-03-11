@@ -33,6 +33,8 @@ namespace OmniMind.Abstractions.Ingestion
         /// Token 数量（估算）
         /// </summary>
         public int TokenCount { get; set; }
+
+        public Dictionary<string, string> Metadata { get; set; } = new();
     }
 
     /// <summary>
@@ -54,5 +56,11 @@ namespace OmniMind.Abstractions.Ingestion
         /// 每个切片最小 token 数（默认 100）
         /// </summary>
         public int MinTokens { get; set; } = 100;
+
+        public string? DocumentTitle { get; set; }
+
+        public string? SourceType { get; set; }
+
+        public string? SourceName { get; set; }
     }
 }

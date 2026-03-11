@@ -1,6 +1,7 @@
 <template>
-  <div class="profile-container">
-    <el-card class="profile-card">
+  <div class="profile-shell">
+    <div class="profile-container">
+      <el-card class="profile-card">
       <div class="profile-header">
         <el-avatar :src="userInfo?.avatar" :size="100">
           <el-icon size="50"><User /></el-icon>
@@ -33,7 +34,8 @@
           </el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+      </el-card>
+    </div>
   </div>
 </template>
 
@@ -95,14 +97,24 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.profile-shell {
+  min-height: 100%;
+  padding: clamp(12px, 3vw, 28px);
+  background:
+    radial-gradient(circle at top left, rgba(14, 165, 233, 0.08), transparent 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(241, 245, 249, 0.9));
+  border-radius: 28px;
+}
+
 .profile-container {
   max-width: 800px;
   margin: 0 auto;
 }
 
 .profile-card {
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 24px 56px rgba(15, 23, 42, 0.08);
 }
 
 .profile-header {
@@ -138,6 +150,12 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .profile-shell {
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+  }
+
   .profile-container {
     padding: 0;
   }

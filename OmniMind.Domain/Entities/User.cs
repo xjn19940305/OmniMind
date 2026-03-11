@@ -47,10 +47,7 @@ namespace OmniMind.Entities
         /// </summary>
         public UserProfile? Profile { get; set; }
 
-        /// <summary>
-        /// 推送设备列表
-        /// </summary>
-        public ICollection<PushDevice> PushDevices { get; set; } = new List<PushDevice>();
+
 
         /// <summary>
         /// 用户拥有的知识库集合

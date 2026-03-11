@@ -41,14 +41,65 @@ $border-radius-lg: 12px;
   }
 }
 
+@mixin tablet-down {
+  @media (max-width: $breakpoint-tablet) {
+    @content;
+  }
+}
+
+@mixin content-shell($padding: $spacing-lg) {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-sm);
+  backdrop-filter: blur(16px);
+  padding: $padding;
+}
+
+@mixin app-dialog-width($width) {
+  width: min(#{$width}, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+}
+
+@mixin safe-bottom-padding($base) {
+  padding-bottom: calc(#{$base} + var(--safe-bottom));
+}
+
 // Global styles
 * {
   box-sizing: border-box;
 }
 
+html,
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.app-page {
+  width: 100%;
+}
+
+.app-surface {
+  @include content-shell();
+}
+
+.app-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-dialog {
+  @include app-dialog-width(720px);
 }
 
 // Responsive utilities

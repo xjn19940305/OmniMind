@@ -11,6 +11,7 @@ using OmniMind.Enums;
 using OmniMind.Ingestion;
 using OmniMind.Persistence.PostgreSql;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace OmniMind.Messaging.RabbitMQ
 {
@@ -228,8 +229,11 @@ namespace OmniMind.Messaging.RabbitMQ
                 // 执行文本切片
                 var textChunks = chunker.Chunk(extractedText, new ChunkingOptions
                 {
-                    MaxTokens = 500,
-                    OverlapTokens = 50
+                    MaxTokens = 700,
+                    OverlapTokens = 100,
+                    DocumentTitle = document.Title,
+                    SourceType = document.ContentType,
+                    SourceName = document.Title
                 });
 
                 if (textChunks.Count == 0)
@@ -247,7 +251,7 @@ namespace OmniMind.Messaging.RabbitMQ
                         ChunkIndex = tc.Index,
                         ParentChunkId = null,
                         Content = tc.Content,
-                        ExtraJson = null,
+                        ExtraJson = tc.Metadata.Count == 0 ? null : JsonSerializer.Serialize(tc.Metadata),
                         TokenCount = tc.TokenCount,
                         StartMs = null,
                         EndMs = null,
@@ -369,6 +373,18 @@ namespace OmniMind.Messaging.RabbitMQ
                             { "chunk_index", chunk.ChunkIndex },
                             { "content", chunk.Content }
                         };
+
+                        if (!string.IsNullOrWhiteSpace(chunk.ExtraJson))
+                        {
+                            var metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(chunk.ExtraJson);
+                            if (metadata != null)
+                            {
+                                foreach (var item in metadata)
+                                {
+                                    payload[item.Key] = item.Value;
+                                }
+                            }
+                        }
 
                         // 从 Embedding<float> 获取向量数组
                         var vectorArray = embedding.Vector.ToArray();

@@ -2,24 +2,6 @@ import request from '../utils/request'
 import type { ChatMessage, ChatSession, Attachment, Conversation, ConversationDetail, ConversationListResponse, ChatMessageDto } from '../types'
 
 /**
- * 生成文档总结（流式输出）
- */
-export function generateSummary(documentId: string, conversationId?: string) {
-  return request<{
-    messageId: string
-    conversationId: string
-  }>({
-    url: '/api/Chat/chatStream',
-    method: 'post',
-    data: {
-      documentId,
-      sessionId: conversationId,
-      message: '请基于这个文档生成一份结构化摘要，包含主题、关键信息和行动项。'
-    }
-  })
-}
-
-/**
  * 统一聊天接口（通过 SignalR 流式响应）
  * 三种互斥模式：
  * 1. 纯AI对话 - 不带 knowledgeBaseId 和 documentId
@@ -32,6 +14,7 @@ export function chatStream(
   knowledgeBaseId?: string,
   documentId?: string,
   conversationId?: string,
+  assistantMessageId?: string,
   topK?: number,
   model?: string,
   history?: ChatMessage[]
@@ -44,6 +27,7 @@ export function chatStream(
     method: 'post',
     data: {
       sessionId: conversationId,
+      assistantMessageId,
       message,
       knowledgeBaseId,
       documentId,

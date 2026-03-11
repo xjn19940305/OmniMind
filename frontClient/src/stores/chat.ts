@@ -6,6 +6,7 @@ import type {
   Conversation,
   ConversationDetail,
 } from "../types";
+import { parseChatReferences } from "../utils/chatReferences";
 import {
   getConversations,
   getConversation,
@@ -46,6 +47,7 @@ export const useChatStore = defineStore("chat", () => {
         role: m.role as "user" | "assistant" | "system",
         content: m.content,
         timestamp: m.createdAt,
+        references: parseChatReferences(m.references),
         status: m.status as any,
         error: m.error,
         completedAt: m.completedAt,
@@ -62,19 +64,11 @@ export const useChatStore = defineStore("chat", () => {
   ) {
     const prev = previousContent || "";
 
-    if (isComplete) {
-      return incomingContent || prev;
-    }
-
     if (!incomingContent) {
       return prev;
     }
 
-    if (!prev) {
-      return incomingContent;
-    }
-
-    return incomingContent.startsWith(prev) ? incomingContent : prev + incomingContent;
+    return prev + incomingContent;
   }
 
   async function loadConversations() {

@@ -79,6 +79,10 @@ namespace App.Controllers
             var fileName = request.File.FileName;
             var objectKey = MinioObjectStorage.GenerateObjectKey(GetUserId(), documentId, fileName);
             var contentType = DetermineContentType(fileName);
+            if (!IsSupportedUploadContentType(contentType))
+            {
+                return BadRequest(new ErrorResponse { Message = "当前暂仅支持 pdf、docx、pptx、xlsx、md、txt，以及现有图片音视频类型" });
+            }
 
             try
             {
@@ -200,6 +204,52 @@ namespace App.Controllers
             }
 
             return Ok(await MapToResponse(document));
+        }
+
+        [HttpGet("{id}/preview")]
+        public async Task<IActionResult> PreviewDocument(string id)
+        {
+            var document = await dbContext.Documents
+                .FirstOrDefaultAsync(d => d.Id == id);
+            if (document == null)
+            {
+                return NotFound(new ErrorResponse { Message = $"文档 {id} 不存在" });
+            }
+
+            if (!await EnsureDocumentReadableAsync(document))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new ErrorResponse { Message = "无权访问此文档" });
+            }
+
+            if (!string.IsNullOrWhiteSpace(document.ObjectKey))
+            {
+                try
+                {
+                    var stream = await objectStorage.GetAsync(document.ObjectKey);
+                    Response.Headers["Content-Disposition"] =
+                        $"inline; filename*=UTF-8''{Uri.EscapeDataString(document.Title)}";
+                    return File(stream, document.ContentType);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "预览文档失败: DocumentId={DocumentId}", document.Id);
+                    return NotFound(new ErrorResponse { Message = "文件内容不存在或无法预览" });
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(document.Content))
+            {
+                Response.Headers["Content-Disposition"] =
+                    $"inline; filename*=UTF-8''{Uri.EscapeDataString(document.Title)}";
+                return Content(document.Content, document.ContentType);
+            }
+
+            if (!string.IsNullOrWhiteSpace(document.SourceUri))
+            {
+                return Redirect(document.SourceUri);
+            }
+
+            return NotFound(new ErrorResponse { Message = "文件内容不存在或无法预览" });
         }
 
         [HttpGet]
@@ -427,6 +477,8 @@ namespace App.Controllers
                 ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 ".ppt" => "application/vnd.ms-powerpoint",
                 ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".xls" => "application/vnd.ms-excel",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 ".md" or ".markdown" => "text/markdown",
                 ".txt" => "text/plain",
                 ".htm" or ".html" => "text/html",
@@ -449,6 +501,23 @@ namespace App.Controllers
                 ".ogg" => "audio/ogg",
                 ".m4a" => "audio/mp4",
                 _ => "application/octet-stream"
+            };
+        }
+
+        private static bool IsSupportedUploadContentType(string contentType)
+        {
+            return contentType switch
+            {
+                "application/pdf" => true,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => true,
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation" => true,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => true,
+                "text/markdown" => true,
+                "text/plain" => true,
+                "image/jpeg" or "image/png" or "image/gif" or "image/bmp" or "image/webp" => true,
+                "video/mp4" or "video/quicktime" => true,
+                "audio/mpeg" or "audio/wav" or "audio/mp4" => true,
+                _ => false
             };
         }
 

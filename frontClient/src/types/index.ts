@@ -25,6 +25,7 @@ export interface ChatMessage {
   content: string
   timestamp?: string
   files?: Attachment[]
+  references?: ChatReference[]
   metadata?: Record<string, any>
   status?: 'pending' | 'streaming' | 'completed' | 'failed'
   error?: string
@@ -67,6 +68,17 @@ export interface ChatMessageDto {
   completedAt?: string
 }
 
+export interface ChatReference {
+  documentId: string
+  documentTitle: string
+  chunkId: string
+  snippet: string
+  score?: number
+  sourceType: 'knowledge_base' | 'document'
+  hitCount: number
+  previewUrl: string
+}
+
 export interface ConversationDetail extends Conversation {
   messages: ChatMessageDto[]
 }
@@ -106,6 +118,7 @@ export enum SourceType {
 }
 
 export enum DocumentStatus {
+  Pending = 0,
   Uploaded = 1,
   Parsing = 2,
   Parsed = 3,

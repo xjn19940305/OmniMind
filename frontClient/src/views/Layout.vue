@@ -1,7 +1,6 @@
 <template>
   <div class="layout-container">
     <el-container>
-      <!-- Mobile Header -->
       <el-header class="mobile-header mobile-only">
         <div class="header-left">
           <el-button text @click="mobileDrawerVisible = true">
@@ -29,8 +28,10 @@
       </el-header>
 
       <el-container>
-        <!-- Desktop Sidebar -->
-        <el-aside class="desktop-sidebar desktop-only" :width="collapsed ? '64px' : '240px'">
+        <el-aside
+          class="desktop-sidebar desktop-only"
+          :width="collapsed ? '72px' : '248px'"
+        >
           <div class="sidebar-header">
             <template v-if="!collapsed">
               <span class="logo">OmniMind</span>
@@ -64,11 +65,10 @@
           </el-menu>
         </el-aside>
 
-        <!-- Mobile Drawer -->
         <el-drawer
           v-model="mobileDrawerVisible"
           direction="ltr"
-          size="70%"
+          :size="drawerSize"
           class="mobile-drawer mobile-only"
         >
           <template #header>
@@ -98,8 +98,10 @@
           </el-menu>
         </el-drawer>
 
-        <!-- Main Content -->
-        <el-main class="main-content">
+        <el-main
+          class="main-content"
+          :class="{ 'main-content-tablet': isTabletOrBelow }"
+        >
           <router-view />
         </el-main>
       </el-container>
@@ -108,74 +110,89 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { computed, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
-  Menu,
-  User,
-  SwitchButton,
-  Fold,
-  Expand,
   ChatDotRound,
-  Collection
-} from '@element-plus/icons-vue'
-import { useUserStore } from '../stores/user'
+  Collection,
+  Expand,
+  Fold,
+  Menu,
+  SwitchButton,
+  User,
+} from "@element-plus/icons-vue";
+import { useViewport } from "../composables/useViewport";
+import { useUserStore } from "../stores/user";
 
-const router = useRouter()
-const route = useRoute()
-const userStore = useUserStore()
+const router = useRouter();
+const route = useRoute();
+const userStore = useUserStore();
+const { mode, isTabletOrBelow } = useViewport();
 
-const collapsed = ref(false)
-const mobileDrawerVisible = ref(false)
+const collapsed = ref(false);
+const mobileDrawerVisible = ref(false);
 
-const userInfo = computed(() => userStore.userInfo)
-const activeMenu = computed(() => route.path)
+const userInfo = computed(() => userStore.userInfo);
+const activeMenu = computed(() => route.path);
+const drawerSize = computed(() => (mode.value === "mobile" ? "86%" : "70%"));
 
 function handleCommand(command: string) {
-  if (command === 'profile') {
-    router.push('/profile')
-  } else if (command === 'logout') {
-    handleLogout()
+  if (command === "profile") {
+    router.push("/profile");
+    return;
+  }
+
+  if (command === "logout") {
+    handleLogout();
   }
 }
 
 async function handleLogout() {
   try {
-    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    await userStore.logout()
-    ElMessage.success('已退出登录')
-    router.push('/login')
-  } catch (e) {
-    // User cancelled or error occurred
-    if (e !== 'cancel') {
-      console.error('Logout error:', e)
+    await ElMessageBox.confirm("确定要退出登录吗？", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+    await userStore.logout();
+    ElMessage.success("已退出登录");
+    router.push("/login");
+  } catch (error) {
+    if (error !== "cancel") {
+      console.error("Logout error:", error);
     }
   }
 }
 </script>
 
 <style scoped lang="scss">
+@use "../styles/index.scss" as *;
+
 .layout-container {
-  height: 100vh;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: transparent;
 }
 
 .el-container {
-  height: 100%;
+  min-height: 100vh;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
-// Mobile Header
 .mobile-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  background: white;
-  border-bottom: 1px solid #e4e7ed;
+  height: 64px;
+  padding: 0 var(--page-gutter-mobile);
+  background: rgba(255, 255, 255, 0.84);
+  border-bottom: 1px solid var(--app-border);
+  backdrop-filter: blur(18px);
 
   .header-left {
     display: flex;
@@ -184,8 +201,9 @@ async function handleLogout() {
 
     .logo {
       font-size: 20px;
-      font-weight: bold;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 55%, #38bdf8 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -193,27 +211,39 @@ async function handleLogout() {
 
   .user-avatar-wrapper {
     cursor: pointer;
+    padding: 4px;
+    border-radius: 999px;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: rgba(37, 99, 235, 0.08);
+    }
   }
 }
 
-// Desktop Sidebar
 .desktop-sidebar {
-  background: white;
-  border-right: 1px solid #e4e7ed;
+  margin: 14px 0 14px 14px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--app-border);
+  border-radius: 24px;
+  box-shadow: var(--app-shadow-sm);
+  backdrop-filter: blur(16px);
+  overflow: hidden;
   transition: width 0.3s;
 
   .sidebar-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 60px;
+    height: 68px;
     padding: 0 20px;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid var(--app-border);
 
     .logo {
       font-size: 22px;
-      font-weight: bold;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 55%, #38bdf8 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -221,19 +251,90 @@ async function handleLogout() {
 
   .sidebar-menu {
     border: none;
+    background: transparent;
+
+    :deep(.el-menu-item) {
+      margin: 6px 12px;
+      border-radius: 14px;
+      color: var(--app-text-secondary);
+
+      &.is-active {
+        background: linear-gradient(
+          135deg,
+          rgba(37, 99, 235, 0.14),
+          rgba(56, 189, 248, 0.12)
+        );
+        color: var(--app-primary-strong);
+      }
+    }
   }
 }
 
-// Main Content
 .main-content {
-  padding: 20px;
-  background: #f5f7fa;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  padding: var(--page-gutter);
+  background: transparent;
+  overflow-x: hidden;
   overflow-y: auto;
+}
+
+.main-content-tablet {
+  padding: 18px var(--page-gutter-mobile) calc(18px + var(--safe-bottom));
 }
 
 @media (max-width: 768px) {
   .main-content {
-    padding: 16px;
+    min-height: calc(100vh - 64px);
+    padding: 14px var(--page-gutter-mobile) calc(18px + var(--safe-bottom));
+  }
+
+  .mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .mobile-header :deep(.el-button) {
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+
+  .mobile-drawer {
+    :deep(.el-drawer) {
+      border-radius: 0 24px 24px 0;
+      overflow: hidden;
+    }
+
+    :deep(.el-drawer__header) {
+      margin-bottom: 0;
+      padding: 20px 20px 12px;
+      border-bottom: 1px solid var(--app-border);
+    }
+
+    :deep(.el-drawer__body) {
+      padding: 12px;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.96),
+        rgba(244, 248, 255, 0.98)
+      );
+    }
+
+    :deep(.el-menu) {
+      border-right: none;
+      background: transparent;
+    }
+
+    :deep(.el-menu-item) {
+      height: 48px;
+      line-height: 48px;
+      margin-bottom: 6px;
+      border-radius: 14px;
+    }
   }
 }
 </style>

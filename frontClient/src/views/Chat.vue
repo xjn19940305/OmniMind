@@ -1,38 +1,6 @@
 <template>
   <div class="chat-container">
     <div class="chat-main">
-      <!-- Knowledge Base Selector -->
-      <div class="kb-selector">
-        <el-select
-          v-model="selectedKnowledgeBase"
-          placeholder="选择知识库（可选）"
-          clearable
-          filterable
-          style="width: 100%"
-          @change="handleKnowledgeBaseChange"
-        >
-          <el-option
-            v-for="kb in knowledgeBases"
-            :key="kb.id"
-            :label="kb.name"
-            :value="kb.id"
-          >
-            <span>{{ kb.name }}</span>
-            <span style="float: right; color: #8492a6; font-size: 12px">
-              {{ kb.documentCount || 0 }} 文档
-            </span>
-          </el-option>
-        </el-select>
-        <el-tag
-          v-if="selectedKnowledgeBase"
-          type="success"
-          size="small"
-          style="margin-left: 8px"
-        >
-          已启用知识库检索
-        </el-tag>
-      </div>
-
       <!-- Connection Status -->
       <div v-if="!isSignalRConnected" class="connection-status">
         <el-icon><Warning /></el-icon>
@@ -83,6 +51,34 @@
                 class="message-text"
                 v-html="renderMessage(message.content)"
               ></div>
+              <div
+                v-if="message.role === 'assistant' && message.references?.length"
+                class="message-references"
+              >
+                <div class="references-title">引用来源</div>
+                <div class="reference-card-list">
+                  <div
+                    v-for="reference in message.references"
+                    :key="reference.documentId"
+                    class="reference-card"
+                    @click="handleReferenceClick(reference)"
+                  >
+                    <div class="reference-card-header">
+                      <span class="reference-name">{{ reference.documentTitle }}</span>
+                      <span class="reference-source">
+                        {{ getReferenceSourceLabel(reference.sourceType) }}
+                      </span>
+                    </div>
+                    <div class="reference-snippet">{{ reference.snippet }}</div>
+                    <div v-if="reference.hitCount > 1" class="reference-hit-count">
+                      命中 {{ reference.hitCount }} 处
+                    </div>
+                    <div v-if="typeof reference.score === 'number'" class="reference-score">
+                      相关度 {{ formatReferenceScore(reference.score) }}
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div class="message-time">
                 {{ formatTime(message.timestamp) }}
               </div>
@@ -119,64 +115,109 @@
 
       <!-- Input Area -->
       <div class="input-area">
-        <div v-if="selectedFiles.length > 0" class="selected-files">
-          <el-tag
-            v-for="file in selectedFiles"
-            :key="file.id"
-            :type="getFileStatusType(file.status)"
-            closable
-            @close="handleRemoveFile(file.id)"
+        <div class="composer-shell">
+          <div
+            v-if="selectedFiles.length > 0 || selectedKnowledgeBase"
+            class="selected-files"
           >
-            <el-icon><Document /></el-icon>
-            {{ file.name }}
-            <span v-if="file.status !== 5" class="file-status">
-              {{ getFileStatusText(file.status) }}
-            </span>
-          </el-tag>
-        </div>
-
-        <div class="input-box">
-          <el-input
-            v-model="inputMessage"
-            type="textarea"
-            :autosize="{ minRows: 1, maxRows: 6 }"
-            :placeholder="
-              selectedKnowledgeBase ? '基于知识库回答问题...' : '输入消息...'
-            "
-            @keydown.enter.prevent="handleEnter"
-          />
-          <div class="input-actions">
-            <el-upload
-              ref="uploadRef"
-              :auto-upload="false"
-              :show-file-list="false"
-              :on-change="handleFileChange"
-              multiple
-              accept=".pdf,.doc,.docx,.ppt,.pptx,.md,.txt,.jpg,.jpeg,.png,.gif"
+            <el-tag
+              v-if="selectedKnowledgeBase"
+              class="selected-knowledge-base"
+              type="success"
+              closable
+              @close="handleClearKnowledgeBase"
             >
-              <el-button text>
-                <el-icon><Plus /></el-icon>
-                上传文件
-              </el-button>
-            </el-upload>
-            <el-button
-              text
-              :disabled="!canGenerateSummary"
-              :loading="isGeneratingSummary"
-              @click="handleGenerateSummary"
+              <el-icon><Collection /></el-icon>
+              {{ getKnowledgeBaseName(selectedKnowledgeBase) }}
+            </el-tag>
+            <el-tag
+              v-for="file in selectedFiles"
+              :key="file.id"
+              :type="getFileStatusType(file.status)"
+              closable
+              @close="handleRemoveFile(file.id)"
             >
               <el-icon><Document /></el-icon>
-              生成总结
-            </el-button>
-            <el-button
-              type="primary"
-              :loading="isStreaming"
-              :disabled="!canSendMessage"
-              @click="handleSend"
-            >
-              <el-icon><Promotion /></el-icon>
-              发送
-            </el-button>
+              {{ file.name }}
+              <span v-if="file.status !== 5" class="file-status">
+                {{ getFileStatusText(file.status) }}
+              </span>
+            </el-tag>
+          </div>
+
+          <div class="input-box">
+            <div class="editor-shell">
+              <el-input
+                v-model="inputMessage"
+                type="textarea"
+                :autosize="{ minRows: 3, maxRows: 6 }"
+                :placeholder="
+                  selectedKnowledgeBase ? '基于知识库回答问题...' : '输入消息...'
+                "
+                @keydown.enter.prevent="handleEnter"
+              />
+            </div>
+
+            <div class="toolbar-actions">
+              <div class="input-tools">
+                <el-select
+                  v-model="selectedModel"
+                  class="model-select"
+                  :disabled="isLoadingModels"
+                  placeholder="选择模型"
+                >
+                  <el-option
+                    v-for="model in modelOptions"
+                    :key="model"
+                    :label="model"
+                    :value="model"
+                  />
+                </el-select>
+                <el-upload
+                  ref="uploadRef"
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  :on-change="handleFileChange"
+                  accept=".pdf,.docx,.pptx,.xlsx,.md,.txt,.jpg,.jpeg,.png,.gif"
+                >
+                  <el-button text class="tool-button">
+                    <el-icon><Plus /></el-icon>
+                    上传文件
+                  </el-button>
+                </el-upload>
+                <el-select
+                  v-model="selectedKnowledgeBase"
+                  class="knowledge-select"
+                  placeholder="选择知识库"
+                  clearable
+                  filterable
+                  @change="handleKnowledgeBaseChange"
+                >
+                  <el-option
+                    v-for="kb in knowledgeBases"
+                    :key="kb.id"
+                    :label="kb.name"
+                    :value="kb.id"
+                  >
+                    <span>{{ kb.name }}</span>
+                    <span style="float: right; color: #8492a6; font-size: 12px">
+                      {{ kb.documentCount || 0 }} 文档
+                    </span>
+                  </el-option>
+                </el-select>
+              </div>
+
+              <el-button
+                type="primary"
+                class="send-button"
+                :loading="isStreaming"
+                :disabled="!canSendMessage"
+                @click="handleSend"
+              >
+                <el-icon><Promotion /></el-icon>
+                发送
+              </el-button>
+            </div>
           </div>
         </div>
       </div>
@@ -195,6 +236,7 @@ import {
   User,
   Service,
   Document,
+  Collection,
   Delete,
   ChatDotRound,
   Promotion,
@@ -207,10 +249,12 @@ import {
   chatStream,
   uploadFile,
   checkFileHash,
-  generateSummary,
   cancelStreamingMessage,
 } from "../api/chat";
+import { getModelConfig } from "../api/config";
 import { getKnowledgeBases } from "../api/knowledge";
+import { request } from "../utils/request";
+import { resolvePreviewRequestUrl } from "../utils/previewUrl";
 import {
   initSignalR,
   stopSignalR,
@@ -221,7 +265,17 @@ import {
   type DocumentProgress,
 } from "../utils/signalr";
 import { calculateFileHash } from "../utils/fileHash";
-import type { Attachment, ChatMessage as ApiChatMessage } from "../types";
+import {
+  DEFAULT_CHAT_MODEL,
+  resolveSelectedModel,
+  sanitizeModelOptions,
+} from "../utils/chatModel";
+import { normalizeChatMessageContent } from "../utils/chatMessageContent";
+import type {
+  Attachment,
+  ChatMessage as ApiChatMessage,
+  ChatReference,
+} from "../types";
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
@@ -234,8 +288,10 @@ const showMobileSessions = ref(false);
 const isSignalRConnected = ref(false);
 const selectedKnowledgeBase = ref<string>("");
 const knowledgeBases = ref<any[]>([]);
-const isGeneratingSummary = ref(false);
 const currentStreamingMessageId = ref<string | null>(null);
+const modelOptions = ref<string[]>([DEFAULT_CHAT_MODEL]);
+const selectedModel = ref(DEFAULT_CHAT_MODEL);
+const isLoadingModels = ref(false);
 
 const sessions = computed(() => chatStore.sessions);
 const conversations = computed(() => chatStore.conversations);
@@ -249,7 +305,7 @@ const canSendMessage = computed(() => {
   const hasUnreadyFile = selectedFiles.value.some((f) => f.status !== 5);
   const result = hasInput && !hasUnreadyFile && !isStreaming.value;
 
-  console.log("[Chat] canSendMessage 检查:", {
+  console.log("[Chat] canSendMessage check:", {
     hasInput,
     hasUnreadyFile,
     isStreaming: isStreaming.value,
@@ -264,14 +320,6 @@ const canSendMessage = computed(() => {
   return result;
 });
 
-// 是否可以生成总结：必须有且只有一个已就绪的文件，且没有正在进行的操作
-const canGenerateSummary = computed(() => {
-  const hasOneReadyFile =
-    selectedFiles.value.length === 1 && selectedFiles.value[0].status === 5;
-  return hasOneReadyFile && !isStreaming.value && !isGeneratingSummary.value;
-});
-
-// 获取文件状态文本
 function getFileStatusText(status?: number) {
   if (!status) return "上传中...";
   switch (status) {
@@ -326,6 +374,14 @@ function hasKnowledgeBase(id?: string | null) {
 }
 
 // 处理文档进度更新
+function getReferenceSourceLabel(sourceType: ChatReference["sourceType"]) {
+  return sourceType === "document" ? "文件问答" : "知识库";
+}
+
+function formatReferenceScore(score: number) {
+  return `${Math.round(score * 100)}%`;
+}
+
 function handleDocumentProgress(progress: DocumentProgress) {
   console.log("[Chat] 收到文档进度:", progress);
   console.log("[Chat] 当前文件列表:", selectedFiles.value);
@@ -392,6 +448,28 @@ async function loadKnowledgeBases() {
 }
 
 // 知识库变化时记录日志
+async function loadChatModels() {
+  isLoadingModels.value = true;
+
+  try {
+    const config = await getModelConfig();
+    const options = sanitizeModelOptions(config.chatModels);
+
+    modelOptions.value = options.length > 0 ? options : [DEFAULT_CHAT_MODEL];
+    selectedModel.value = resolveSelectedModel(
+      modelOptions.value,
+      selectedModel.value,
+    );
+  } catch (error) {
+    modelOptions.value = [DEFAULT_CHAT_MODEL];
+    selectedModel.value = resolveSelectedModel(modelOptions.value);
+    ElMessage.warning("模型列表加载失败，已使用默认模型");
+    console.error("[Chat] 加载模型列表失败:", error);
+  } finally {
+    isLoadingModels.value = false;
+  }
+}
+
 function handleKnowledgeBaseChange(value: string | undefined) {
   if (value) {
     selectedFiles.value = [];
@@ -400,6 +478,10 @@ function handleKnowledgeBaseChange(value: string | undefined) {
   } else {
     console.log("[Chat] 已取消知识库，使用默认聊天");
   }
+}
+
+function handleClearKnowledgeBase() {
+  selectedKnowledgeBase.value = "";
 }
 
 // 构建对话历史
@@ -424,12 +506,7 @@ function formatTime(timestamp: string) {
 }
 
 function renderMessage(content: string) {
-  const cleanedContent = content
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/^\n+/, "")
-    .replace(/\n+$/, "");
-
-  return marked(cleanedContent);
+  return marked(normalizeChatMessageContent(content));
 }
 
 function scrollToBottom() {
@@ -461,6 +538,11 @@ async function handleDeleteSession(conversationId: string) {
 
 async function handleFileChange(file: UploadFile) {
   if (!file.raw) return;
+  if (selectedFiles.value.length > 0) {
+    uploadRef.value?.clearFiles();
+    ElMessage.warning("聊天只支持单文件，请先移除当前文件");
+    return;
+  }
 
   try {
     ElMessage.info(`正在计算 ${file.name} 的哈希值...`);
@@ -510,73 +592,62 @@ function handleRemoveFile(fileId: string) {
   }
 }
 
-function handlePreviewFile(file: Attachment) {
+function legacyHandlePreviewPlaceholder(file: Attachment) {
   ElMessage.info("文件预览功能开发中");
 }
 
-// 生成文档总结
-async function handleGenerateSummary() {
-  if (!canGenerateSummary.value) return;
-  if (selectedFiles.value.length === 0) {
-    ElMessage.warning("请先上传文件");
-    return;
+async function openPreviewUrl(previewUrl: string) {
+  const blob = await request<Blob>({
+    url: resolvePreviewRequestUrl(previewUrl),
+    method: "get",
+    responseType: "blob",
+  });
+  const objectUrl = URL.createObjectURL(blob);
+  const previewWindow = window.open(objectUrl, "_blank", "noopener,noreferrer");
+
+  if (!previewWindow) {
+    URL.revokeObjectURL(objectUrl);
+    throw new Error("preview-window-blocked");
   }
 
-  const documentId = selectedFiles.value[0].id;
-  const conversationId = currentSessionId.value;
-  const localConversationId = conversationId || `temp-${Date.now()}`;
-  chatStore.ensureSession(localConversationId, "新对话");
+  setTimeout(() => {
+    URL.revokeObjectURL(objectUrl);
+  }, 60_000);
+}
 
+async function legacyHandlePreviewFile(file: Attachment) {
   try {
-    isGeneratingSummary.value = true;
+    await openPreviewUrl(file.url);
+  } catch (error) {
+    console.error("[Chat] file preview failed:", error);
+    ElMessage.error("鏂囦欢棰勮澶辫触");
+  }
+}
 
-    chatStore.addMessage(localConversationId, {
-      id: Date.now().toString(),
-      role: "user",
-      content: `请为文档《${selectedFiles.value[0].name}》生成总结`,
-      timestamp: new Date().toISOString(),
-      files: [...selectedFiles.value],
-    });
+async function legacyHandleReferenceClick(reference: ChatReference) {
+  try {
+    await openPreviewUrl(reference.previewUrl);
+  } catch (error) {
+    console.error("[Chat] reference preview failed:", error);
+    ElMessage.error("寮曠敤鏂囦欢鎵撳紑澶辫触");
+  }
+}
 
-    inputMessage.value = "";
-    selectedFiles.value = [];
+async function handlePreviewFile(file: Attachment) {
+  try {
+    await openPreviewUrl(file.url);
+  } catch (error) {
+    console.error("[Chat] file preview failed:", error);
+    ElMessage.error("文件预览失败");
+  }
+}
 
-    const assistantMessageId = `${Date.now()}_assistant`;
-    chatStore.addMessage(localConversationId, {
-      id: assistantMessageId,
-      role: "assistant",
-      content: "",
-      timestamp: new Date().toISOString(),
-    });
-
-    const currentSession = sessions.value.find((s) => s.id === localConversationId);
-    const messageIndex = currentSession?.messages.length - 1 || 0;
-
-    chatStore.isStreaming = true;
-    scrollToBottom();
-
-    const response = await generateSummary(documentId, conversationId || undefined);
-
-    pendingMessages.set(response.messageId, {
-      sessionId: response.conversationId,
-      messageIndex,
-      localMessageId: assistantMessageId,
-    });
-
-    currentStreamingMessageId.value = response.messageId;
-
-    if (response.conversationId !== localConversationId) {
-      chatStore.promoteSession(localConversationId, response.conversationId);
-    } else {
-      chatStore.currentConversationId = response.conversationId;
-    }
-
-    console.log("[Chat] 总结生成请求已发送:", response.messageId);
-  } catch (error: any) {
-    isGeneratingSummary.value = false;
-    chatStore.isStreaming = false;
-    ElMessage.error(error.response?.data?.message || "生成总结失败");
-    console.error("生成总结失败:", error);
+async function handleReferenceClick(reference: ChatReference) {
+  try {
+    await openPreviewUrl(reference.previewUrl);
+  } catch (error) {
+    console.error("[Chat] reference preview failed:", error);
+    ElMessage.error("引用文件打开失败");
   }
 }
 
@@ -587,6 +658,14 @@ function handleEnter(event: KeyboardEvent) {
 }
 
 // 取消流式消息生成
+function generateClientMessageId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}_${Math.random().toString(36).slice(2)}_assistant`;
+}
+
 async function handleCancelStreaming() {
   if (!currentStreamingMessageId.value) return;
 
@@ -598,7 +677,6 @@ async function handleCancelStreaming() {
   } finally {
     currentStreamingMessageId.value = null;
     chatStore.isStreaming = false;
-    isGeneratingSummary.value = false;
   }
 }
 
@@ -651,7 +729,7 @@ async function handleSend() {
   inputMessage.value = "";
   selectedFiles.value = [];
 
-  const assistantMessageId = `${Date.now()}_assistant`;
+  const assistantMessageId = generateClientMessageId();
   chatStore.addMessage(localConversationId, {
     id: assistantMessageId,
     role: "assistant",
@@ -673,22 +751,34 @@ async function handleSend() {
 
   try {
     const history = buildHistory();
+    pendingMessages.set(assistantMessageId, {
+      sessionId: localConversationId,
+      messageIndex,
+      localMessageId: assistantMessageId,
+    });
 
     const response = await chatStream(
       content,
       knowledgeBaseId,
       documentId,
       conversationId || undefined,
+      assistantMessageId,
       undefined,
-      "deepseek-v3.2",
+      resolveSelectedModel(modelOptions.value, selectedModel.value),
       history,
     );
 
-    pendingMessages.set(response.messageId, {
-      sessionId: response.conversationId,
-      messageIndex,
-      localMessageId: assistantMessageId,
-    });
+    const pending = pendingMessages.get(assistantMessageId);
+    if (pending) {
+      pendingMessages.set(response.messageId, {
+        ...pending,
+        sessionId: response.conversationId,
+      });
+
+      if (response.messageId !== assistantMessageId) {
+        pendingMessages.delete(assistantMessageId);
+      }
+    }
 
     currentStreamingMessageId.value = response.messageId;
 
@@ -709,6 +799,7 @@ async function handleSend() {
           : "(默认聊天)",
     );
   } catch (error: any) {
+    pendingMessages.delete(assistantMessageId);
     chatStore.isStreaming = false;
     ElMessage.error(error.response?.data?.message || "发送失败");
     console.error("发送失败:", error);
@@ -763,12 +854,16 @@ function handleSignalRChatMessage(data: {
     if (message.isComplete) {
       console.log("[Chat] 消息完成，清理 pending");
       chatStore.isStreaming = false;
-      isGeneratingSummary.value = false;
       pendingMessages.delete(message.messageId);
       currentStreamingMessageId.value = null;
 
       // 刷新会话列表以更新最后消息时间
       chatStore.loadConversations();
+      if (currentSessionId.value === data.conversationId) {
+        void chatStore.loadConversationDetail(data.conversationId).then(() => {
+          scrollToBottom();
+        });
+      }
     }
   } else {
     console.log("[Chat] 未找到 pending message，处理为新消息");
@@ -809,6 +904,7 @@ async function initializeSignalR() {
 
 onMounted(async () => {
   await chatStore.loadConversations();
+  await loadChatModels();
   await loadKnowledgeBases();
   await initializeSignalR();
 
@@ -826,10 +922,15 @@ onMounted(async () => {
 <style scoped lang="scss">
 .chat-container {
   display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 100%;
-  background: #f7f8fa;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(244, 248, 255, 0.9));
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-md);
+  backdrop-filter: blur(18px);
   overflow: hidden;
 }
 
@@ -850,40 +951,19 @@ onMounted(async () => {
   }
 }
 
-.kb-selector {
-  display: flex;
-  align-items: center;
-  padding: 14px 20px;
-  background: white;
-  border-bottom: 1px solid #ebeef5;
-  gap: 12px;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: #fafbfc;
-  }
-
-  .el-select {
-    flex: 1;
-  }
-
-  .el-tag {
-    animation: fadeIn 0.3s ease;
-  }
-}
-
 .chat-main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  background: white;
+  background: transparent;
 }
 
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 20px;
-  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+  padding: 28px 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(243, 247, 253, 0.88) 100%);
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -1079,6 +1159,93 @@ onMounted(async () => {
     color: #c0c4cc;
     font-weight: 500;
   }
+
+  .message-references {
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(248, 250, 252, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+  }
+
+  .references-title {
+    margin-bottom: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    letter-spacing: 0.02em;
+  }
+
+  .reference-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .reference-card {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    cursor: pointer;
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      border-color 0.2s ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      border-color: rgba(37, 99, 235, 0.24);
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
+    }
+  }
+
+  .reference-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .reference-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+    word-break: break-word;
+  }
+
+  .reference-source {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.08);
+    color: #2563eb;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .reference-snippet {
+    font-size: 12px;
+    line-height: 1.6;
+    color: #475569;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .reference-hit-count {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #475569;
+    font-weight: 600;
+  }
+
+  .reference-score {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #64748b;
+  }
 }
 
 .typing-indicator {
@@ -1125,55 +1292,111 @@ onMounted(async () => {
 }
 
 .input-area {
-  border-top: 1px solid #e4e7ed;
-  padding: 16px 20px;
-  background: white;
+  border-top: 1px solid var(--app-border);
+  padding: 18px 20px calc(18px + var(--safe-bottom));
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+}
+
+.composer-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(37, 99, 235, 0.08);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 246, 255, 0.92));
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
 }
 
 .selected-files {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 14px;
   animation: fadeIn 0.3s ease;
+
+  .selected-knowledge-base {
+    :deep(.el-tag__content) {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+  }
 }
 
 .input-box {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
 
-  .input-actions {
+.editor-shell {
+  position: relative;
+}
+
+.toolbar-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+
+  .input-tools {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding-top: 8px;
-
-    .el-button {
-      border-radius: 8px;
-      font-weight: 500;
-      transition: all 0.3s ease;
-
-      &:hover {
-        transform: translateY(-1px);
-      }
-
-      &.el-button--primary {
-        box-shadow: 0 2px 8px rgba(64, 158, 255, 0.25);
-      }
-    }
+    gap: 12px;
+    flex-wrap: wrap;
+    min-width: 0;
+    flex: 1;
   }
 
-  :deep(.el-textarea__inner) {
-    border-radius: 10px;
-    border: 1.5px solid #e4e7ed;
-    transition: all 0.3s ease;
-    font-size: 14px;
+  .model-select,
+  .knowledge-select {
+    width: 220px;
+    max-width: 100%;
+  }
 
-    &:focus {
-      border-color: #409eff;
-      box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+  .tool-button {
+    min-height: 42px;
+    padding: 0 14px;
+    border-radius: 12px;
+    background: rgba(37, 99, 235, 0.06);
+    border: 1px solid rgba(37, 99, 235, 0.08);
+  }
+
+  .send-button {
+    min-width: 132px;
+    min-height: 44px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+  }
+
+  .el-button {
+    font-weight: 600;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-1px);
     }
+
+    &.el-button--primary {
+      box-shadow: 0 2px 8px rgba(64, 158, 255, 0.25);
+    }
+  }
+}
+
+:deep(.el-textarea__inner) {
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  transition: all 0.3s ease;
+  font-size: 14px;
+  padding: 14px 16px;
+
+  &:focus {
+    border-color: #409eff;
+    box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
   }
 }
 
@@ -1261,15 +1484,34 @@ onMounted(async () => {
   }
 
   .messages-container {
-    padding: 16px 12px;
+    padding: 18px 14px;
   }
 
   .input-area {
-    padding: 12px;
+    padding: 12px 12px calc(14px + var(--safe-bottom));
   }
 
-  .kb-selector {
-    padding: 10px 12px;
+  .composer-shell {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .toolbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+
+    .input-tools {
+      width: 100%;
+    }
+
+    .model-select,
+    .knowledge-select {
+      width: 100%;
+    }
+
+    .send-button {
+      width: 100%;
+    }
   }
 }
 
@@ -1283,6 +1525,10 @@ onMounted(async () => {
     padding: 12px 14px;
   }
 
+  .selected-files {
+    gap: 8px;
+  }
+
   .message-avatar {
     margin: 0 8px;
 
@@ -1290,6 +1536,11 @@ onMounted(async () => {
       width: 32px !important;
       height: 32px !important;
     }
+  }
+
+  .tool-button {
+    width: 100%;
+    justify-content: center;
   }
 }
 </style>

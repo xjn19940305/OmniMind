@@ -1,5 +1,6 @@
 <template>
-  <div class="login-container">
+  <div class="login-shell">
+    <div class="login-container">
     <div class="login-box">
       <div class="login-header">
         <h1>OmniMind</h1>
@@ -42,6 +43,7 @@
           </el-button>
         </el-form-item>
       </el-form>
+    </div>
     </div>
   </div>
 </template>
@@ -109,15 +111,20 @@ async function handleLogin() {
 </script>
 
 <style scoped lang="scss">
-.login-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.login-shell {
   min-height: 100vh;
+  padding: clamp(16px, 4vw, 32px);
   background:
     radial-gradient(circle at top left, rgba(18, 120, 92, 0.28), transparent 35%),
     radial-gradient(circle at bottom right, rgba(210, 138, 66, 0.22), transparent 30%),
     linear-gradient(135deg, #f3efe4 0%, #dbe8e1 100%);
+}
+
+.login-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - clamp(32px, 8vw, 64px));
 }
 
 .login-box {
@@ -156,5 +163,13 @@ async function handleLogin() {
 .login-btn {
   width: 100%;
   height: 44px;
+}
+
+@media (max-width: 768px) {
+  .login-box {
+    width: 100%;
+    padding: 28px 20px;
+    border-radius: 20px;
+  }
 }
 </style>

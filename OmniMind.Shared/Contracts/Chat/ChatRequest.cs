@@ -13,6 +13,11 @@ namespace OmniMind.Contracts.Chat
         public string? SessionId { get; init; }
 
         /// <summary>
+        /// 助手消息ID（可选，用于让前端在请求返回前就能关联流式消息）
+        /// </summary>
+        public string? AssistantMessageId { get; init; }
+
+        /// <summary>
         /// 用户消息
         /// </summary>
         public string Message { get; init; } = string.Empty;

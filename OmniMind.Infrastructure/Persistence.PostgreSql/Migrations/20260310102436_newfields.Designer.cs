@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OmniMind.Persistence.PostgreSql;
@@ -11,9 +12,11 @@ using OmniMind.Persistence.PostgreSql;
 namespace OmniMind.Persistence.PostgreSql.Migrations
 {
     [DbContext(typeof(OmniMindDbContext))]
-    partial class OmniMindDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260310102436_newfields")]
+    partial class newfields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -760,6 +763,54 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     b.ToTable("knowledge_base_members");
                 });
 
+            modelBuilder.Entity("OmniMind.Entities.PushDevice", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Alias")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AppVersion")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ClientId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeviceModel")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LastActiveAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OsVersion")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("PushEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PushDevices");
+                });
+
             modelBuilder.Entity("OmniMind.Entities.RefreshToken", b =>
                 {
                     b.Property<string>("Id")
@@ -1465,6 +1516,17 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("OmniMind.Entities.PushDevice", b =>
+                {
+                    b.HasOne("OmniMind.Entities.User", "User")
+                        .WithMany("PushDevices")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("OmniMind.Entities.RoleClaim", b =>
                 {
                     b.HasOne("OmniMind.Entities.Role", null)
@@ -1583,6 +1645,8 @@ namespace OmniMind.Persistence.PostgreSql.Migrations
                     b.Navigation("OwnedKnowledgeBases");
 
                     b.Navigation("Profile");
+
+                    b.Navigation("PushDevices");
                 });
 #pragma warning restore 612, 618
         }

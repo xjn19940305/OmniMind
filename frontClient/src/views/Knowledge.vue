@@ -112,27 +112,38 @@
         </div>
       </template>
 
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="知识库ID">{{ activeKb.id }}</el-descriptions-item>
-        <el-descriptions-item label="可见性">
-          {{ getVisibilityLabel(activeKb.visibility) }}
-        </el-descriptions-item>
-        <el-descriptions-item label="拥有者">
-          {{ activeKb.ownerName || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="创建时间">
-          {{ formatDate(activeKb.createdAt) }}
-        </el-descriptions-item>
-        <el-descriptions-item label="更新时间">
-          {{ activeKb.updatedAt ? formatDate(activeKb.updatedAt) : '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="成员数量">
-          {{ activeKb.memberCount || 0 }}
-        </el-descriptions-item>
-        <el-descriptions-item label="描述" :span="2">
-          {{ activeKb.description || '-' }}
-        </el-descriptions-item>
-      </el-descriptions>
+      <div class="knowledge-detail-grid">
+        <div class="detail-item">
+          <span class="detail-label">知识库 ID</span>
+          <span class="detail-value">{{ activeKb.id }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">可见性</span>
+          <span class="detail-value">{{ getVisibilityLabel(activeKb.visibility) }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">拥有者</span>
+          <span class="detail-value">{{ activeKb.ownerName || '-' }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">创建时间</span>
+          <span class="detail-value">{{ formatDate(activeKb.createdAt) }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">更新时间</span>
+          <span class="detail-value">
+            {{ activeKb.updatedAt ? formatDate(activeKb.updatedAt) : '-' }}
+          </span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">成员数量</span>
+          <span class="detail-value">{{ activeKb.memberCount || 0 }}</span>
+        </div>
+        <div class="detail-item detail-item-wide">
+          <span class="detail-label">描述</span>
+          <span class="detail-value detail-description">{{ activeKb.description || '-' }}</span>
+        </div>
+      </div>
     </el-card>
 
     <!-- Create KB Dialog -->
@@ -226,18 +237,18 @@
 
     <!-- Members Dialog -->
     <el-dialog v-model="showMembersDialog" :title="`成员管理 - ${currentKb?.name || ''}`" width="700px">
-      <div class="members-header">
+      <div class="members-header members-controls">
         <el-input
           v-model="memberForm.userId"
           placeholder="输入用户ID"
           clearable
-          style="width: 300px"
+          class="member-user-input"
         >
           <template #prefix>
             <el-icon><User /></el-icon>
           </template>
         </el-input>
-        <el-select v-model="memberForm.role" placeholder="选择角色" style="width: 150px; margin-left: 10px">
+        <el-select v-model="memberForm.role" placeholder="选择角色" class="member-role-select">
           <el-option :value="1" label="管理员" />
           <el-option :value="2" label="编辑" />
           <el-option :value="3" label="查看者" />
@@ -280,6 +291,37 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="member-card-list mobile-only">
+        <div
+          v-for="row in members"
+          :key="row.userId"
+          class="member-card"
+        >
+          <div class="member-card-top">
+            <div>
+              <div class="member-name">{{ row.userName || row.userId }}</div>
+              <div class="member-id">{{ row.userId }}</div>
+            </div>
+            <el-tag size="small">{{ getMemberRoleLabel(row.role) }}</el-tag>
+          </div>
+          <div class="member-card-meta">加入时间：{{ formatDate(row.createdAt) }}</div>
+          <div class="member-card-actions">
+            <el-select
+              v-model="row.role"
+              size="small"
+              @change="handleUpdateMemberRole(row)"
+            >
+              <el-option :value="1" label="管理员" />
+              <el-option :value="2" label="编辑" />
+              <el-option :value="3" label="查看者" />
+            </el-select>
+            <el-button link type="danger" @click="handleRemoveMember(row)">
+              移除
+            </el-button>
+          </div>
+        </div>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -698,12 +740,18 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .knowledge-card,
 .detail-card {
-  border-radius: 12px;
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--app-border);
+  border-radius: 24px;
+  box-shadow: var(--app-shadow-sm);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(243, 247, 253, 0.94));
 }
 
 .card-header {
@@ -727,6 +775,43 @@ onMounted(() => {
   .search-input {
     max-width: 400px;
   }
+}
+
+.knowledge-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.detail-item-wide {
+  grid-column: 1 / -1;
+}
+
+.detail-label {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.detail-value {
+  color: var(--app-text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.detail-description {
+  font-weight: 500;
 }
 
 .kb-content {
@@ -782,6 +867,61 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
+.members-controls {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.member-user-input {
+  width: 300px;
+  max-width: 100%;
+}
+
+.member-role-select {
+  width: 150px;
+}
+
+.member-card-list {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.member-card {
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.member-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.member-name {
+  color: var(--app-text);
+  font-weight: 700;
+}
+
+.member-id,
+.member-card-meta {
+  margin-top: 4px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.member-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .ml-1 {
   margin-left: 4px;
 }
@@ -797,10 +937,19 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .knowledge-card,
+  .detail-card {
+    border-radius: 18px;
+  }
+
   .filter-bar {
     .search-input {
       max-width: 100%;
     }
+  }
+
+  .knowledge-detail-grid {
+    grid-template-columns: 1fr;
   }
 
   .card-header {
@@ -812,7 +961,21 @@ onMounted(() => {
       width: 100%;
       display: flex;
       gap: 8px;
+      flex-wrap: wrap;
     }
+  }
+
+  .members-controls {
+    align-items: stretch;
+  }
+
+  .member-user-input,
+  .member-role-select {
+    width: 100%;
+  }
+
+  :deep(.el-table) {
+    display: none;
   }
 }
 </style>

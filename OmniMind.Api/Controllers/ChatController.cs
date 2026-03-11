@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using OmniMind.Abstractions.SignalR;
@@ -13,6 +13,8 @@ using OmniMind.Ingestion;
 using OmniMind.Messages;
 using OmniMind.Messaging.Abstractions;
 using OmniMind.Persistence.PostgreSql;
+using System.Diagnostics;
+using System.Text.Json;
 using AiChatMessage = Microsoft.Extensions.AI.ChatMessage;
 using AiChatRole = Microsoft.Extensions.AI.ChatRole;
 using IRealtimeNotifier = OmniMind.Abstractions.SignalR.IRealtimeNotifier;
@@ -27,6 +29,11 @@ namespace App.Controllers
     [Route("api/[controller]")]
     public class ChatController : BaseController
     {
+        private static readonly JsonSerializerOptions ReferenceJsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
         private readonly IServiceScopeFactory serviceScopeFactory;
         private readonly IChatClient chatClient;
         private readonly IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator;
@@ -73,6 +80,7 @@ namespace App.Controllers
                 return BadRequest(new ErrorResponse { Message = "消息内容不能为空" });
             }
 
+            var requestStopwatch = Stopwatch.StartNew();
             var userId = GetUserId();
 
             using var scope = serviceScopeFactory.CreateScope();
@@ -159,6 +167,12 @@ namespace App.Controllers
                     });
                 }
 
+                logger.LogInformation(
+                    "[Chat] chatStream accepted: MessageId={MessageId}, ConversationId={ConversationId}, ElapsedMs={ElapsedMs}",
+                    assistantMessageId,
+                    conversationId,
+                    requestStopwatch.ElapsedMilliseconds);
+
                 return Ok(new ChatStreamResponse
                 {
                     MessageId = assistantMessageId,
@@ -238,7 +252,9 @@ namespace App.Controllers
             dbContext.ChatMessages.Add(userMessage);
 
             // 创建助手消息记录（初始状态为 streaming）
-            var assistantMessageId = IdGenerator.NewId();
+            var assistantMessageId = !string.IsNullOrWhiteSpace(request.AssistantMessageId)
+                ? request.AssistantMessageId
+                : IdGenerator.NewId();
             var assistantMessage = new OmniMind.Entities.ChatMessage
             {
                 Id = assistantMessageId,
@@ -320,6 +336,10 @@ namespace App.Controllers
             var userId = GetUserId();
             var sessionId = request.SessionId ?? Guid.NewGuid().ToString();
             var contentType = GetContentType(request.File.FileName);
+            if (!IsSupportedTemporaryUploadContentType(contentType))
+            {
+                return BadRequest(new ErrorResponse { Message = "当前暂仅支持 pdf、docx、pptx、xlsx、md、txt，以及现有图片类型" });
+            }
 
             try
             {
@@ -705,6 +725,8 @@ namespace App.Controllers
             _cancellationTokenSources[messageId] = cts;
 
             var sb = new System.Text.StringBuilder();
+            var streamingStopwatch = Stopwatch.StartNew();
+            var firstChunkLogged = false;
 
             try
             {
@@ -717,20 +739,27 @@ namespace App.Controllers
                     {
                         if (!string.IsNullOrEmpty(update.Text))
                         {
-                            // 清理多余的空行后再发送
-                            var cleanedContent = CleanExtraNewlines(update.Text);
-                            sb.Append(cleanedContent);
-                            await SendStreamingChunkAsync(userId, conversationId, messageId, cleanedContent, isComplete: false);
+                            if (!firstChunkLogged)
+                            {
+                                logger.LogInformation(
+                                    "[Chat] first simple chunk: MessageId={MessageId}, ConversationId={ConversationId}, ElapsedMs={ElapsedMs}, ChunkLength={ChunkLength}",
+                                    messageId,
+                                    conversationId,
+                                    streamingStopwatch.ElapsedMilliseconds,
+                                    update.Text.Length);
+                                firstChunkLogged = true;
+                            }
+
+                            sb.Append(update.Text);
+                            await SendStreamingChunkAsync(userId, conversationId, messageId, update.Text, isComplete: false);
                         }
                     }
                 }
 
                 // 发送完整内容
                 var finalContent = CleanExtraNewlines(sb.ToString());
-                await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
-
-                // 保存助手消息到数据库
                 await SaveAssistantMessageAsync(messageId, conversationId, finalContent, status: "completed");
+                await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
 
                 logger.LogInformation("[Chat] 简单聊天完成: MessageId={MessageId}", messageId);
             }
@@ -740,8 +769,8 @@ namespace App.Controllers
                 var partialContent = sb.ToString();
                 if (!string.IsNullOrEmpty(partialContent))
                 {
-                    await SendStreamingChunkAsync(userId, conversationId, messageId, partialContent, isComplete: true);
                     await SaveAssistantMessageAsync(messageId, conversationId, partialContent, status: "completed");
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
                 }
                 else
                 {
@@ -784,14 +813,17 @@ namespace App.Controllers
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
 
             var sb = new System.Text.StringBuilder();
+            var streamingStopwatch = Stopwatch.StartNew();
+            var firstChunkLogged = false;
+            string? referencesJson = null;
 
             try
             {
                 // 1. 生成查询向量并检索相关文档
                 logger.LogInformation("[Chat] 正在检索相关文档: MessageId={MessageId}", messageId);
-                var context = await RetrieveRelevantContextAsync(dbContext, knowledgeBase.Id, request.Message, request.TopK, cts.Token);
+                var retrievedContext = await RetrieveRelevantContextAsync(dbContext, knowledgeBase.Id, request.Message, request.TopK, cts.Token);
 
-                if (string.IsNullOrEmpty(context))
+                if (retrievedContext == null)
                 {
                     var notFoundMsg = "知识库中没有找到相关文档";
                     await SendStreamingChunkAsync(userId, conversationId, messageId, notFoundMsg, isComplete: true);
@@ -800,8 +832,9 @@ namespace App.Controllers
                     logger.LogWarning("[Chat] 未找到相关文档: MessageId={MessageId}", messageId);
                     return;
                 }
+                referencesJson = SerializeReferences(retrievedContext.References);
                 // 2. 构建带上下文的消息列表
-                var messages = BuildRagMessages(context, baseMessages);
+                var messages = BuildRagMessages(retrievedContext.Context, baseMessages);
                 // 3. 转换为 AI 消息并调用 LLM
                 var aiMessages = ConvertToAiMessages(messages);
                 var options = BuildChatOptions(request);
@@ -812,17 +845,24 @@ namespace App.Controllers
                 {
                     if (update.Text != null)
                     {
+                        if (!firstChunkLogged)
+                        {
+                            logger.LogInformation(
+                                "[Chat] first rag chunk: MessageId={MessageId}, ConversationId={ConversationId}, ElapsedMs={ElapsedMs}, ChunkLength={ChunkLength}",
+                                messageId,
+                                conversationId,
+                                streamingStopwatch.ElapsedMilliseconds,
+                                update.Text.Length);
+                            firstChunkLogged = true;
+                        }
+
                         sb.Append(update.Text);
-                        // 清理多余的空行后再发送
-                        var cleanedContent = CleanExtraNewlines(sb.ToString());
-                        await SendStreamingChunkAsync(userId, conversationId, messageId, cleanedContent, isComplete: false);
+                        await SendStreamingChunkAsync(userId, conversationId, messageId, update.Text, isComplete: false);
                     }
                 }
                 var finalContent = CleanExtraNewlines(sb.ToString());
-                await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
-
-                // 保存助手消息到数据库
-                await SaveAssistantMessageAsync(messageId, conversationId, finalContent, status: "completed");
+                await SaveAssistantMessageAsync(messageId, conversationId, finalContent, status: "completed", referencesJson);
+                await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
 
                 logger.LogInformation("[Chat] RAG 聊天完成: MessageId={MessageId}", messageId);
             }
@@ -833,8 +873,8 @@ namespace App.Controllers
                 var partialContent = sb.ToString();
                 if (!string.IsNullOrEmpty(partialContent))
                 {
-                    await SendStreamingChunkAsync(userId, conversationId, messageId, partialContent, isComplete: true);
-                    await SaveAssistantMessageAsync(messageId, conversationId, partialContent, status: "completed");
+                    await SaveAssistantMessageAsync(messageId, conversationId, partialContent, status: "completed", referencesJson);
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
                 }
                 else
                 {
@@ -877,6 +917,7 @@ namespace App.Controllers
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
 
             var sb = new System.Text.StringBuilder();
+            string? referencesJson = null;
 
             try
             {
@@ -915,9 +956,9 @@ namespace App.Controllers
 
                 // 3. 检索相关上下文（从 documents_kb_ collection）
                 logger.LogInformation("[Chat] 正在检索临时文档: MessageId={MessageId}, DocumentId={DocumentId}", messageId, documentId);
-                var context = await RetrieveDocumentContextAsync(dbContext, documentId, request.Message, request.TopK, cts.Token);
+                var retrievedContext = await RetrieveDocumentContextAsync(dbContext, documentId, request.Message, request.TopK, cts.Token);
 
-                if (string.IsNullOrEmpty(context))
+                if (retrievedContext == null)
                 {
                     var notFoundMsg = "文档中没有找到相关内容";
                     await SendStreamingChunkAsync(userId, conversationId, messageId, notFoundMsg, isComplete: true);
@@ -926,9 +967,10 @@ namespace App.Controllers
                     logger.LogWarning("[Chat] 未找到相关文档片段: MessageId={MessageId}", messageId);
                     return;
                 }
+                referencesJson = SerializeReferences(retrievedContext.References);
 
                 // 3. 构建带上下文的消息列表
-                var messages = BuildRagMessages(context, baseMessages);
+                var messages = BuildRagMessages(retrievedContext.Context, baseMessages);
 
                 // 4. 转换为 AI 消息并调用 LLM
                 var aiMessages = ConvertToAiMessages(messages);
@@ -941,17 +983,13 @@ namespace App.Controllers
                     if (update.Text != null)
                     {
                         sb.Append(update.Text);
-                        // 清理多余的空行后再发送
-                        var cleanedContent = CleanExtraNewlines(sb.ToString());
-                        await SendStreamingChunkAsync(userId, conversationId, messageId, cleanedContent, isComplete: false);
+                        await SendStreamingChunkAsync(userId, conversationId, messageId, update.Text, isComplete: false);
                     }
                 }
 
                 var finalContent = CleanExtraNewlines(sb.ToString());
-                await SendStreamingChunkAsync(userId, conversationId, messageId, finalContent, isComplete: true);
-
-                // 保存助手消息到数据库
-                await SaveAssistantMessageAsync(messageId, conversationId, finalContent, status: "completed");
+                await SaveAssistantMessageAsync(messageId, conversationId, finalContent, status: "completed", referencesJson);
+                await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
 
                 logger.LogInformation("[Chat] 临时文件聊天完成: MessageId={MessageId}", messageId);
             }
@@ -962,8 +1000,8 @@ namespace App.Controllers
                 var partialContent = sb.ToString();
                 if (!string.IsNullOrEmpty(partialContent))
                 {
-                    await SendStreamingChunkAsync(userId, conversationId, messageId, partialContent, isComplete: true);
-                    await SaveAssistantMessageAsync(messageId, conversationId, partialContent, status: "completed");
+                    await SaveAssistantMessageAsync(messageId, conversationId, partialContent, status: "completed", referencesJson);
+                    await SendStreamingChunkAsync(userId, conversationId, messageId, string.Empty, isComplete: true);
                 }
                 else
                 {
@@ -989,7 +1027,7 @@ namespace App.Controllers
         /// <summary>
         /// 检索相关上下文
         /// </summary>
-        private async Task<string?> RetrieveRelevantContextAsync(
+        private async Task<RetrievedContext?> RetrieveRelevantContextAsync(
             OmniMindDbContext dbContext,
             string knowledgeBaseId,
             string query,
@@ -1017,23 +1055,25 @@ namespace App.Controllers
                 .ToListAsync(cancellationToken);
 
             var contextParts = new List<string>();
+            var references = new List<ChatReferenceItem>();
             foreach (var hit in searchResults)
             {
                 var chunk = chunks.FirstOrDefault(c => (c.VectorPointId ?? c.Id) == hit.Id);
                 if (chunk != null)
                 {
                     contextParts.Add($"【{chunk.Document.Title}】\n{chunk.Content}");
+                    references.Add(CreateReferenceItem(chunk, hit.Score, "knowledge_base"));
                 }
             }
 
             logger.LogInformation("[Chat] 检索到 {Count} 个相关文档片段", contextParts.Count);
-            return string.Join("\n\n", contextParts);
+            return new RetrievedContext(string.Join("\n\n", contextParts), references);
         }
 
         /// <summary>
         /// 从固定 collection 检索特定文档的向量（用于临时文件聊天）
         /// </summary>
-        private async Task<string?> RetrieveDocumentContextAsync(
+        private async Task<RetrievedContext?> RetrieveDocumentContextAsync(
             OmniMindDbContext dbContext,
             string documentId,
             string query,
@@ -1108,17 +1148,19 @@ namespace App.Controllers
                 .ToListAsync();
 
             var contextParts = new List<string>();
+            var references = new List<ChatReferenceItem>();
             foreach (var hit in searchResults)
             {
                 var chunk = chunks.FirstOrDefault(c => (c.VectorPointId ?? c.Id) == hit.Id);
                 if (chunk != null)
                 {
                     contextParts.Add($"【{chunk.Document.Title}】\n{chunk.Content}");
+                    references.Add(CreateReferenceItem(chunk, hit.Score, "document"));
                 }
             }
 
             logger.LogInformation("[Chat] 从临时文件检索到 {Count} 个相关片段", contextParts.Count);
-            return string.Join("\n\n", contextParts);
+            return new RetrievedContext(string.Join("\n\n", contextParts), references);
         }
 
         /// <summary>
@@ -1259,8 +1301,9 @@ namespace App.Controllers
             return extension switch
             {
                 ".pdf" => "application/pdf",
-                ".doc" or ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                ".ppt" or ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 ".md" or ".markdown" => "text/markdown",
                 ".txt" => "text/plain",
                 ".jpg" or ".jpeg" => "image/jpeg",
@@ -1274,6 +1317,21 @@ namespace App.Controllers
             };
         }
 
+        private static bool IsSupportedTemporaryUploadContentType(string contentType)
+        {
+            return contentType switch
+            {
+                "application/pdf" => true,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => true,
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation" => true,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => true,
+                "text/markdown" => true,
+                "text/plain" => true,
+                "image/jpeg" or "image/png" or "image/gif" => true,
+                _ => false
+            };
+        }
+
         /// <summary>
         /// 获取附件类型
         /// </summary>
@@ -1284,6 +1342,7 @@ namespace App.Controllers
                 "application/pdf" => "pdf",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "word",
                 "application/vnd.openxmlformats-officedocument.presentationml.presentation" => "ppt",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "excel",
                 "text/markdown" => "markdown",
                 "text/plain" => "txt",
                 "image/jpeg" or "image/png" or "image/gif" => "image",
@@ -1308,6 +1367,40 @@ namespace App.Controllers
             return cleaned.Substring(0, 47) + "...";
         }
 
+        private static ChatReferenceItem CreateReferenceItem(Chunk chunk, float score, string sourceType)
+        {
+            return new ChatReferenceItem(
+                chunk.DocumentId,
+                chunk.Document?.Title ?? "未命名文档",
+                chunk.Id,
+                BuildReferenceSnippet(chunk.Content),
+                score,
+                sourceType);
+        }
+
+        private static string BuildReferenceSnippet(string content)
+        {
+            var cleaned = CleanExtraNewlines(content).Replace("\r", " ").Replace("\n", " ");
+            var normalized = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ").Trim();
+
+            if (normalized.Length <= 180)
+            {
+                return normalized;
+            }
+
+            return normalized[..177] + "...";
+        }
+
+        private static string? SerializeReferences(IReadOnlyCollection<ChatReferenceItem> references)
+        {
+            if (references.Count == 0)
+            {
+                return null;
+            }
+
+            return JsonSerializer.Serialize(references, ReferenceJsonOptions);
+        }
+
         /// <summary>
         /// 保存助手消息到数据库
         /// </summary>
@@ -1315,7 +1408,8 @@ namespace App.Controllers
             string messageId,
             string conversationId,
             string content,
-            string status = "completed")
+            string status = "completed",
+            string? referencesJson = null)
         {
             using var scope = serviceScopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OmniMindDbContext>();
@@ -1328,6 +1422,7 @@ namespace App.Controllers
                 message.Content = content;
                 message.Status = status;
                 message.CompletedAt = status == "completed" ? DateTimeOffset.UtcNow : null;
+                message.References = referencesJson;
 
                 // 更新会话的更新时间
                 var conversation = await dbContext.Conversations
@@ -1340,6 +1435,16 @@ namespace App.Controllers
                 await dbContext.SaveChangesAsync();
             }
         }
+
+        private sealed record RetrievedContext(string Context, IReadOnlyList<ChatReferenceItem> References);
+
+        private sealed record ChatReferenceItem(
+            string DocumentId,
+            string DocumentTitle,
+            string ChunkId,
+            string Snippet,
+            float Score,
+            string SourceType);
 
         #endregion
     }

@@ -5,6 +5,7 @@
   <Folder Name="/OmniMind.Application/">
     <Project Path="OmniMind.Application/OmniMind.Application/OmniMind.Application.csproj" />
     <Project Path="OmniMind.Application/OmniMind.Ingestion/OmniMind.Ingestion.csproj" />
+    <Project Path="OmniMind.Application/OmniMind.Ingestion.Tests/OmniMind.Ingestion.Tests.csproj" />
     <Project Path="OmniMind.Application/Orchestrator/OmniMind.Orchestrator.csproj" />
   </Folder>
   <Folder Name="/OmniMind.Domain/">
@@ -52,6 +53,7 @@
   <SolutionFolder Name="OmniMind.Application">
     <Project Path="OmniMind.Application/OmniMind.Application/OmniMind.Application.csproj" Id="app-layer-guid" />
     <Project Path="OmniMind.Application/OmniMind.Ingestion/OmniMind.Ingestion.csproj" Id="fd5de9c7-25cb-49c3-9c82-0d2dce1ca9be" />
+    <Project Path="OmniMind.Application/OmniMind.Ingestion.Tests/OmniMind.Ingestion.Tests.csproj" />
     <Project Path="OmniMind.Application/Orchestrator/OmniMind.Orchestrator.csproj" />
   </SolutionFolder>
 
